@@ -1,0 +1,39 @@
+{
+  "name": "rabbithole",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "An infinite canvas for learning. Start from a document, select text, ask, and the answer branches out as a child document. Recurse forever.",
+  "license": "MIT",
+  "author": "Shlok Khemani",
+  "homepage": "https://rabbithole.ing",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shlokkhemani/rabbithole.git"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "learning",
+    "canvas",
+    "claude-code",
+    "codex",
+    "agent"
+  ],
+  "bin": {
+    "rabbithole-mcp": "./bin/mcp-server.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "marked": "^15.0.7",
+    "zod": "^3.24.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

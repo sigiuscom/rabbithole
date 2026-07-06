@@ -1,0 +1,77 @@
+# Rabbithole
+
+> An infinite canvas for learning. The human opens a document, selects text,
+> asks a question — and the answer opens as a fully-rendered child document
+> they can keep branching from. Rabbithole is a local MCP server; the agent
+> reading this does the answering. Free, MIT-licensed, no account, no API
+> keys, everything stays on the machine.
+
+Source: https://github.com/shlokkhemani/rabbithole
+Requires: Node >= 18 and a browser.
+
+## Setup (do this for your human)
+
+Register the MCP server in whichever client you are running inside:
+
+- Claude Code: `claude mcp add rabbithole -- npx -y github:shlokkhemani/rabbithole`
+- Codex: `codex mcp add rabbithole -- npx -y github:shlokkhemani/rabbithole`
+- Any other MCP client — add to its `mcpServers` config:
+
+```json
+{
+  "mcpServers": {
+    "rabbithole": {
+      "command": "npx",
+      "args": ["-y", "github:shlokkhemani/rabbithole"]
+    }
+  }
+}
+```
+
+No clone, no build step: npx fetches the repo and runs `bin/mcp-server.js`
+over stdio. The first launch takes ~20 seconds while npx fetches; later
+launches are cached. If startup latency matters, clone instead:
+
+```bash
+git clone https://github.com/shlokkhemani/rabbithole.git
+cd rabbithole && npm install
+# then register:  <client> mcp add rabbithole -- node "$(pwd)/bin/mcp-server.js"
+```
+
+Verify after reconnecting: three tools should be available —
+`open_rabbithole`, `answer_branch`, `list_rabbitholes`. The server identifies
+itself as `rabbithole` in the MCP initialize handshake.
+
+Then tell your human to start a session and say:
+"open <some document> in rabbithole".
+
+## How the tools work
+
+- `open_rabbithole { title, content }` (or `{ title, file_path }`) opens the
+  canvas in the human's browser and BLOCKS until they select text and ask a
+  question. This long-poll is by design — it is not a hang. Pass `{ hole_id }`
+  to resume a saved hole instead.
+- When it returns `status='branch_request'`, answer with `answer_branch`:
+  stream 1–3 sentence chunks with `partial: true` (each returns immediately
+  and appears live on the canvas), then finish with a normal call carrying a
+  short node title. Chunks concatenate verbatim — never repeat text already
+  sent.
+- Loop on branch requests until `status='session_closed'`.
+- A branch request with empty `selected_text` is a follow-up question about
+  the whole parent document. One with a `lens` field (explain | eli5 |
+  example | deeper) carries the style the human tapped — honor it. One with
+  `saved=true` was asked while no agent was listening; answer it normally.
+- On a resumed hole the first branch request includes a `rehydration` field
+  with the full document tree — read it to reload context.
+- `list_rabbitholes` lists saved holes to resume by id.
+
+## Configuration
+
+- `RABBITHOLE_DIR` — override the storage directory (default `~/.rabbithole/`).
+- `RABBITHOLE_NO_BROWSER=1` — don't auto-open the browser (headless/testing).
+
+## Links
+
+- [GitHub repo](https://github.com/shlokkhemani/rabbithole): source, README
+  with the same setup steps
+- [Website](https://rabbithole.ing): human-readable overview

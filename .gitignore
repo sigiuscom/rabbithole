@@ -1,0 +1,15 @@
+node_modules/
+*.log
+.DS_Store
+
+# local working state — not part of the public repo
+backup-*/
+.claude/
+CLAUDE.md
+SPEC.md
+IDEAS.md
+
+# website build output
+website/.next/
+website/out/
+website/next-env.d.ts

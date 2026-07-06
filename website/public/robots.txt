@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+# AI agents: setup instructions live at /llms.txt
