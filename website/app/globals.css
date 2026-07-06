@@ -97,6 +97,13 @@ a:hover {
   color: var(--accent);
 }
 
+.wordmark .mark {
+  display: inline-block;
+  margin-right: 9px;
+  transform: translateY(3px);
+  color: var(--bright);
+}
+
 .nav-links {
   display: flex;
   gap: 26px;
@@ -493,9 +500,20 @@ h2 {
 /* ---- footer ---- */
 
 footer {
-  margin-top: 130px;
+  margin-top: 110px;
+  padding: 0 0 56px;
+}
+
+.burrow-scene {
+  text-align: center;
+  color: var(--text);
+  opacity: 0.9;
+}
+
+.foot-row {
+  margin-top: 26px;
   border-top: 1px solid var(--edge);
-  padding: 40px 0 56px;
+  padding-top: 36px;
 }
 
 .foot-row {

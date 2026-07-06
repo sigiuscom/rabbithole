@@ -1,3 +1,4 @@
+import { Bunny, BunnyPeek } from '../components/Bunny';
 import { CopyButton } from '../components/CopyButton';
 import { DemoVideo } from '../components/DemoVideo';
 
@@ -45,6 +46,9 @@ export default function Page() {
     <div className="wrap">
       <nav className="nav">
         <a className="wordmark" href="/">
+          <span className="mark">
+            <Bunny size={21} />
+          </span>
           rabbit<span className="burrow">hole</span>
         </a>
         <div className="nav-links">
@@ -231,6 +235,9 @@ export default function Page() {
       </section>
 
       <footer>
+        <div className="burrow-scene">
+          <BunnyPeek width={110} />
+        </div>
         <div className="foot-row">
           <span className="foot-tag">
             go deeper. never lose the thread.
