@@ -254,7 +254,9 @@ export const CLIENT_READER = `  // =============================================
     var panes = sideEl.querySelectorAll(".side-item[data-child] .si-live .md");
     for (var i = 0; i < panes.length; i++){
       var item = panes[i].closest(".side-item[data-child]");
-      mountVisuals(panes[i], "reader-side:" + (item ? item.dataset.child : i));
+      var key = "reader-side:" + (item ? item.dataset.child : i);
+      mountVisuals(panes[i], key);
+      if (typeof mountDocImages === "function") mountDocImages(panes[i], nodes[item ? item.dataset.child : ""], null, key);
     }
   }
   function pendingStatusHtml(k){

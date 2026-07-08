@@ -299,8 +299,10 @@ export const CLIENT_CORE = `
   function visualSurfaceKey(node, base){
     return (base === CANVAS_BASE ? "canvas:" : "reader:") + ((node && node.id) || "unknown");
   }
-  function mountDocVisuals(dc, node, base){
-    if (typeof mountVisuals === "function") mountVisuals(dc, visualSurfaceKey(node, base));
+  function mountDocMedia(dc, node, base){
+    var surfaceKey = visualSurfaceKey(node, base);
+    if (typeof mountVisuals === "function") mountVisuals(dc, surfaceKey);
+    if (typeof mountDocImages === "function") mountDocImages(dc, node, base, surfaceKey);
   }
   // A pending node that has streamed content renders it live: the words so far,
   // a breathing caret at the end of the text, and a quiet status row beneath.
@@ -320,7 +322,9 @@ export const CLIENT_CORE = `
       '<span class="ll-frozen">Unfinished when this snapshot was exported</span>' +
       '<span class="loading-time" data-start="' + (node._startTs || Date.now()) + '"></span>';
     dc.appendChild(st);
-    if (typeof mountVisuals === "function") mountVisuals(dc, surfaceKey || ("stream:" + ((node && node.id) || "unknown")));
+    surfaceKey = surfaceKey || ("stream:" + ((node && node.id) || "unknown"));
+    if (typeof mountVisuals === "function") mountVisuals(dc, surfaceKey);
+    if (typeof mountDocImages === "function") mountDocImages(dc, node, null, surfaceKey);
   }
   function formatElapsed(ms){
     var s = Math.floor(ms / 1000);
@@ -349,7 +353,7 @@ export const CLIENT_CORE = `
     }
     else {
       dc.innerHTML = node.html || "";
-      mountDocVisuals(dc, node, base);
+      mountDocMedia(dc, node, base);
     }
     return dc;
   }
