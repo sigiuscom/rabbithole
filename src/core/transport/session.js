@@ -4,6 +4,7 @@ import { openBrowser } from "./browser.js";
 import { log, error as logError } from "../logger.js";
 import { renderMarkdownToHtml } from "../markdown.js";
 import { saveHole } from "../storage.js";
+import { inheritedNodeBaseUrl, maybeUpgradeBaseUrlFromFrontmatter, normalizeBaseUrl } from "../base-url.js";
 import { buildJsonError, parseRequestBody, closeServerGracefully, CLOSE_TIMEOUT_MS } from "./http.js";
 import { writeSseEvent } from "./sse.js";
 
@@ -313,6 +314,8 @@ export class RabbitHoleSession {
       title: n.title ?? "",
       contentHtml: n.contentHtml ?? "",
       markdown: n.markdown ?? "",
+      base_url: n.base_url ?? null,
+      base_url_source: n.base_url_source ?? null,
       origin: n.origin ?? null,
       position: n.position ?? { x: 0, y: 0 },
       size: n.size ?? null,
@@ -377,7 +380,7 @@ export class RabbitHoleSession {
 
   // ---- the answer path (agent -> server -> browser) -----------------------
 
-  async answerBranch({ requestId, title, content, partial, signal }) {
+  async answerBranch({ requestId, title, content, partial, baseUrl, signal }) {
     this.touch();
     if (this.closed) throw new Error("Rabbithole session is already closed");
     this.clearAnswerWatchdog();
@@ -396,12 +399,18 @@ export class RabbitHoleSession {
     const node = this.nodes.get(nodeId);
     if (!node) throw buildJsonError(`Node ${nodeId} not found`, 404);
 
+    const explicitBaseUrl = normalizeBaseUrl(baseUrl);
+    if (explicitBaseUrl) {
+      node.base_url = explicitBaseUrl;
+      node.base_url_source = "explicit";
+    }
+
     // A partial call streams a chunk into the pending node and returns right
     // away — the request stays claimable, the watchdog stays armed (a death
     // mid-stream should still surface as stalled), and nothing persists yet.
     if (partial) {
       node.markdown = (node.markdown || "") + String(content ?? "");
-      node.contentHtml = await renderMarkdownToHtml(node.markdown);
+      node.contentHtml = await renderMarkdownToHtml(node.markdown, { baseUrl: node.base_url });
       this.startAnswerWatchdog();
       this.broadcast({ type: "node_progress", node_id: node.id, contentHtml: node.contentHtml });
       return { ok: true, node_id: node.id, request_id: requestId, partial: true };
@@ -419,7 +428,8 @@ export class RabbitHoleSession {
     const buffered = node.markdown || "";
     node.markdown = buffered && !tail.startsWith(buffered) ? buffered + tail : tail;
     node.title = String(title ?? node.title ?? "Untitled").trim() || "Untitled";
-    node.contentHtml = await renderMarkdownToHtml(node.markdown);
+    if (!explicitBaseUrl) maybeUpgradeBaseUrlFromFrontmatter(node);
+    node.contentHtml = await renderMarkdownToHtml(node.markdown, { baseUrl: node.base_url });
     node.status = "answered";
     // Fresh answers land unread; the client flips this the moment the human
     // actually opens them (and immediately if they're watching it stream).
@@ -432,6 +442,8 @@ export class RabbitHoleSession {
       title: node.title,
       contentHtml: node.contentHtml,
       markdown: node.markdown,
+      base_url: node.base_url,
+      base_url_source: node.base_url_source,
       origin: node.origin,
       position: node.position,
       size: node.size,
@@ -512,6 +524,7 @@ export class RabbitHoleSession {
     const synthesis = payload.synthesis === true;
     const anchor = normalizeAnchor(payload.anchor);
     const branchType = normalizeBranchType(payload.branch_type, selectedText);
+    const inheritedBase = inheritedNodeBaseUrl(parent);
 
     const node = {
       id: nodeId,
@@ -519,6 +532,8 @@ export class RabbitHoleSession {
       title: synthesis ? "Synthesis" : lens ? LENS_LABELS[lens] : question ? truncate(question, 48) : "…",
       markdown: "",
       contentHtml: "",
+      base_url: inheritedBase.base_url,
+      base_url_source: inheritedBase.base_url_source,
       origin: { selected_text: selectedText, question, lens, synthesis, anchor, branch_type: branchType },
       position: normalizePosition(payload.position),
       size: normalizeSize(payload.size),

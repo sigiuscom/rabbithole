@@ -1,4 +1,5 @@
 import { openRabbithole, answerBranch, listRabbitholes } from "../core/index.js";
+import { normalizeBaseUrl } from "../core/base-url.js";
 
 function str(description, extra = {}) {
   return { kind: "string", description, ...extra };
@@ -8,11 +9,16 @@ function obj(fields, extra = {}) {
 }
 
 function validateOpen(params) {
+  normalizeBaseUrl(params.base_url);
   if (params.hole_id) return;
   if (!params.title) throw new Error("title is required when starting a new Rabbithole");
   if (!params.content && !params.file_path) {
     throw new Error("Provide content or file_path when starting a new Rabbithole");
   }
+}
+
+function validateAnswer(params) {
+  normalizeBaseUrl(params.base_url);
 }
 
 export const toolDefinitions = [
@@ -22,6 +28,8 @@ export const toolDefinitions = [
       "Open a document on an infinite canvas so the human can read it and dive down rabbit holes. " +
       "Start a NEW hole with { title, content } (or { title, file_path }), or RESUME a saved one with " +
       "{ hole_id } (use list_rabbitholes to find it). " +
+      "When opening content fetched from a URL or repo, pass the document's own URL as base_url so " +
+      "relative images and links resolve. " +
       "The canvas opens in the browser and this call BLOCKS until the human acts. " +
       "It returns status='branch_request' when the human selects text and asks a question — answer it " +
       "with answer_branch. A branch_request with EMPTY selected_text is a follow-up question about the " +
@@ -35,12 +43,15 @@ export const toolDefinitions = [
       title: str("Document title (required for a new hole)", { optional: true }),
       content: str("Raw markdown for the root document", { optional: true }),
       file_path: str("Path to a .md file (alternative to content)", { optional: true }),
+      base_url: str("Document URL used to resolve relative markdown links/images; absolute http(s) only", {
+        optional: true,
+      }),
       hole_id: str("Resume a saved hole instead of starting a new one", { optional: true }),
     }),
     resultKind: "json",
     validateInput: validateOpen,
-    run: ({ title, content, file_path, hole_id }, extra) =>
-      openRabbithole({ title, content, filePath: file_path, holeId: hole_id, signal: extra?.signal }),
+    run: ({ title, content, file_path, base_url, hole_id }, extra) =>
+      openRabbithole({ title, content, filePath: file_path, baseUrl: base_url, holeId: hole_id, signal: extra?.signal }),
   },
   {
     name: "answer_branch",
@@ -49,6 +60,7 @@ export const toolDefinitions = [
       "",
       "Authoring vocabulary:",
       "- Base notation: GFM markdown, $...$/$$...$$ and \\(...\\)/\\[...\\] math, and highlighted language-tagged code fences.",
+      "- If the answer is content fetched from a URL or repo, pass its document URL as base_url so relative images and links resolve.",
       "- Use ```show when a concept is spatial or structural: architecture, memory layout, relationships.",
       "- show dialect: HTML/CSS/inline-SVG only; no scripts. Scripts and unsafe attributes are stripped.",
       "- show craft: prefer HTML/CSS layout with flexbox/grid over absolute SVG coordinates.",
@@ -71,6 +83,9 @@ export const toolDefinitions = [
       request_id: str("The request_id of the branch_request being answered"),
       title: str("Short label for the new node (a few words; required on the final call)", { optional: true }),
       content: str("Markdown chunk (partial) or the remaining markdown (final call)"),
+      base_url: str("Document URL used to resolve relative markdown links/images; absolute http(s) only", {
+        optional: true,
+      }),
       partial: {
         kind: "boolean",
         description:
@@ -80,12 +95,14 @@ export const toolDefinitions = [
       },
     }),
     resultKind: "json",
-    run: ({ session_id, request_id, title, content, partial }, extra) =>
+    validateInput: validateAnswer,
+    run: ({ session_id, request_id, title, content, base_url, partial }, extra) =>
       answerBranch({
         sessionId: session_id,
         requestId: request_id,
         title,
         content,
+        baseUrl: base_url,
         partial,
         signal: extra?.signal,
       }),

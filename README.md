@@ -74,10 +74,10 @@ Follow these steps exactly:
    also responds to a standard MCP `initialize` with server name `rabbithole`.)
 4. **Tell your human what to do next**: they should start a session and say
    *"open &lt;some document&gt; in rabbithole"* — you then call `open_rabbithole`
-   with `{ title, content }` (or `{ title, file_path }`), which blocks until
-   they select text and ask. Answer with `answer_branch` (stream chunks with
-   `partial: true`, finish with a titled final call) and keep looping until
-   `status='session_closed'`.
+   with `{ title, content }` (or `{ title, file_path }`; add `base_url` when
+   the markdown came from a URL or repo), which blocks until they select text
+   and ask. Answer with `answer_branch` (stream chunks with `partial: true`,
+   finish with a titled final call) and keep looping until `status='session_closed'`.
 
 Notes for you: the tool call blocks by design (long-poll) — that is normal, not
 a hang. First `npx` run takes ~15–30s while it fetches the repo; later runs are
@@ -88,8 +88,8 @@ cached. If the browser must not auto-open (headless), set
 
 | Tool | What it does |
 |------|--------------|
-| `open_rabbithole` | Open a doc (`{ title, content }` / `{ title, file_path }`) or resume one (`{ hole_id }`). Opens the canvas in the browser and blocks until the human asks something. |
-| `answer_branch` | Answer a pending branch request → a child document. Stream with `partial: true` chunks, then finish with a normal call carrying the node title. |
+| `open_rabbithole` | Open a doc (`{ title, content }` / `{ title, file_path }`, optional `base_url`) or resume one (`{ hole_id }`). Opens the canvas in the browser and blocks until the human asks something. |
+| `answer_branch` | Answer a pending branch request → a child document. Stream with `partial: true` chunks, then finish with a normal call carrying the node title; use `base_url` for fetched markdown. |
 | `list_rabbitholes` | List saved holes to resume by id. |
 
 The loop: `open_rabbithole` → `branch_request` → `answer_branch` → `branch_request` → … → `session_closed`.
@@ -102,7 +102,8 @@ The loop: `open_rabbithole` → `branch_request` → `answer_branch` → `branch
 - **Streamed answers:** words appear live with a breathing caret — in the
   reader, the thread, and the canvas card.
 - **Rich Markdown:** answers can use math, highlighted language code fences,
-  and `show` diagrams; source stays as Markdown for copy/export.
+  `show` diagrams, and URL-based resolution for relative links/images; source
+  stays as Markdown for copy/export.
 - **Lenses:** one-tap presets on the ask popup — Explain · ELI5 · Example ·
   Go Deeper (keys 1–4).
 - **Follow-up chat:** a composer under each document asks about the doc as a

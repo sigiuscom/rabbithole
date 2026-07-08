@@ -3,6 +3,7 @@ import { marked } from "marked";
 import katex from "katex";
 import hljs from "highlight.js";
 import { escapeHtml } from "./utils.js";
+import { resolveMarkdownUrl } from "./base-url.js";
 
 marked.setOptions({ gfm: true, breaks: false });
 
@@ -32,6 +33,7 @@ const TRAILING_NEWLINE = /\n$/;
 const BLOCK_MATH_START = /(?:^|\n) {0,3}(?:\$\$(?!\$)|\\\[)/;
 const VISUAL_FENCE_LANGUAGES = new Set(["show"]);
 const VISUAL_FENCE_START = /(?:^|\n) {0,3}`{3,}[ \t]*show(?=$|[ \t\n])/i;
+let renderBaseUrl = null;
 
 function isWhitespace(ch) {
   return ch === undefined || /\s/.test(ch);
@@ -306,7 +308,8 @@ const renderer = {
   },
   link({ href, title, tokens }) {
     const text = this.parser.parseInline(tokens);
-    const safe = sanitizeUrl(href, SAFE_URL);
+    const resolved = resolveMarkdownUrl(href, { baseUrl: renderBaseUrl });
+    const safe = sanitizeUrl(resolved, SAFE_URL);
     if (safe === null) return text;
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
     // Open real links in a new tab so clicking one never navigates away from (and
@@ -315,7 +318,8 @@ const renderer = {
     return `<a href="${escapeHtml(safe)}"${titleAttr}${target} rel="noopener noreferrer">${text}</a>`;
   },
   image({ href, title, text }) {
-    const safe = sanitizeUrl(href, SAFE_IMG);
+    const resolved = resolveMarkdownUrl(href, { baseUrl: renderBaseUrl, image: true });
+    const safe = sanitizeUrl(resolved, SAFE_IMG);
     if (safe === null) return escapeHtml(text || "");
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
     return `<img src="${escapeHtml(safe)}" alt="${escapeHtml(text || "")}"${titleAttr}>`;
@@ -327,7 +331,13 @@ registerFenceRenderer("show", (source) => renderVisualPlaceholder("show", source
 marked.use({ extensions: [visualFencePendingExtension, mathBlockExtension, mathInlineExtension], renderer });
 
 /** Renders markdown to safe HTML, collapsing inter-tag whitespace for compact embedding. */
-export async function renderMarkdownToHtml(markdown) {
-  const html = await marked.parse(String(markdown ?? ""));
-  return html.replace(/>\n+</g, "><").replace(/\n<\/code>/g, "</code>");
+export async function renderMarkdownToHtml(markdown, { baseUrl = null } = {}) {
+  const previousBaseUrl = renderBaseUrl;
+  renderBaseUrl = baseUrl;
+  try {
+    const html = marked.parse(String(markdown ?? ""));
+    return html.replace(/>\n+</g, "><").replace(/\n<\/code>/g, "</code>");
+  } finally {
+    renderBaseUrl = previousBaseUrl;
+  }
 }

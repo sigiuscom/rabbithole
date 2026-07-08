@@ -14,6 +14,7 @@ const server = new McpServer(
       "",
       "Flow:",
       "1. Call open_rabbithole with { title, content } to open a document (or { hole_id } to resume).",
+      "   When opening content fetched from a URL or repo, pass the document's own URL as base_url.",
       "2. It blocks and returns status='branch_request' when the human asks about a selection.",
       "3. STREAM the answer with answer_branch: send 1–3 sentence chunks with partial=true (each",
       "   returns immediately and appears live), then the remaining final chunk in a normal call",

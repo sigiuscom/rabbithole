@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { warn } from "./logger.js";
+import { backfillLegacyHoleBaseUrls, normalizeStoredBaseUrlFields } from "./base-url.js";
 
 /**
  * Holes are persisted one JSON file per hole under ~/.rabbithole/.
@@ -52,22 +53,27 @@ export async function saveHole(hole) {
     // Where the human last was (mode, node, scroll, canvas transform) — restored
     // on reopen so a resume lands exactly where they left off.
     view_state: hole.view_state ?? null,
-    nodes: hole.nodes.map((node) => ({
-      id: node.id,
-      parent_id: node.parent_id ?? null,
-      title: node.title ?? "",
-      markdown: node.markdown ?? "",
-      origin: node.origin ?? null,
-      position: node.position ?? { x: 0, y: 0 },
-      size: node.size ?? null,
-      font_scale: node.font_scale ?? 1,
-      collapsed: !!node.collapsed,
-      status: node.status === "pending" ? "pending" : "answered",
-      // Whether the human has opened this answer — unread answers get a dot and
-      // feed the "since you left" count on the next open.
-      read: !!node.read,
-      created_at: node.created_at ?? null,
-    })),
+    nodes: hole.nodes.map((node) => {
+      const base = normalizeStoredBaseUrlFields(node);
+      return {
+        id: node.id,
+        parent_id: node.parent_id ?? null,
+        title: node.title ?? "",
+        markdown: node.markdown ?? "",
+        base_url: base.base_url,
+        base_url_source: base.base_url_source,
+        origin: node.origin ?? null,
+        position: node.position ?? { x: 0, y: 0 },
+        size: node.size ?? null,
+        font_scale: node.font_scale ?? 1,
+        collapsed: !!node.collapsed,
+        status: node.status === "pending" ? "pending" : "answered",
+        // Whether the human has opened this answer — unread answers get a dot and
+        // feed the "since you left" count on the next open.
+        read: !!node.read,
+        created_at: node.created_at ?? null,
+      };
+    }),
   };
   // Unique temp name per write so concurrent/overlapping saves of the same hole
   // never clobber each other's temp file mid-write; rename is atomic, last wins.
@@ -85,7 +91,12 @@ export async function saveHole(hole) {
 
 export async function loadHole(holeId) {
   const raw = await fs.readFile(holePath(holeId), "utf-8");
-  return JSON.parse(raw);
+  const hole = JSON.parse(raw);
+  const changed = backfillLegacyHoleBaseUrls(hole);
+  if (changed) {
+    await fs.writeFile(holePath(holeId), JSON.stringify(hole, null, 2), "utf-8");
+  }
+  return hole;
 }
 
 export async function listHoles() {
