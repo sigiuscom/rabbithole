@@ -124,6 +124,7 @@ body.agent-down .activity.writing { display: none; }
 .md hr { border: none; border-top: 1px solid var(--border); margin: 1.8em auto; width: 55%; }
 .md img { max-width: 100%; border-radius: 6px; }
 .md .rh-img-frame { position: relative; display: inline-block; max-width: 100%; line-height: 0; vertical-align: top; margin: 0.15em 0 0.85em; }
+.md .rh-img-frame[data-rh-resized="1"] { display: block; margin-left: auto; margin-right: auto; }
 .md .rh-img-frame > img { display: block; width: auto; max-width: 100%; height: auto; cursor: zoom-in; user-select: none; -webkit-user-select: none; }
 .md .rh-img-frame[data-rh-resized="1"] > img { width: 100%; }
 .rh-img-handle { position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; border: 1px solid color-mix(in srgb, var(--fg) 28%, transparent); border-radius: 5px; background: var(--node-bg); color: var(--fg-dim); cursor: nwse-resize; opacity: 0; transform: scale(0.92); transition: opacity 120ms ease, transform 120ms ease, background 120ms ease, color 120ms ease; }

@@ -24,6 +24,27 @@ export const CLIENT_IMAGE_UX = `  // ===========================================
     var max = Math.max(IMAGE_MIN_WIDTH, dc ? dc.clientWidth : IMAGE_MIN_WIDTH);
     return Math.max(IMAGE_MIN_WIDTH, Math.min(max, value));
   }
+  function nearestImageScrollContainer(el){
+    var cur = el ? el.parentElement : null;
+    while (cur && cur !== document.body && cur !== document.documentElement){
+      var style = window.getComputedStyle(cur);
+      var oy = style.overflowY;
+      if ((oy === "auto" || oy === "scroll" || oy === "overlay") && cur.scrollHeight > cur.clientHeight + 1) return cur;
+      cur = cur.parentElement;
+    }
+    return document.scrollingElement || document.documentElement;
+  }
+  function imageScrollScale(scroller){
+    if (!scroller || !scroller.offsetHeight) return 1;
+    var rect = scroller.getBoundingClientRect();
+    return rect.height ? rect.height / scroller.offsetHeight : 1;
+  }
+  function keepImageHandleAnchored(scroller, beforeRect, afterRect){
+    if (!scroller || !beforeRect || !afterRect) return;
+    var delta = afterRect.bottom - beforeRect.bottom;
+    if (!delta) return;
+    scroller.scrollTop += delta / imageScrollScale(scroller);
+  }
   function applyImageWidth(frame, width){
     frame.style.width = Math.round(width) + "px";
     frame.dataset.rhResized = "1";
@@ -41,12 +62,15 @@ export const CLIENT_IMAGE_UX = `  // ===========================================
     var scale = imageSurfaceScale(dc);
     var startX = e.clientX;
     var startW = frame.getBoundingClientRect().width / scale;
+    var scroller = nearestImageScrollContainer(frame);
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch(_e){}
     function move(ev){
       ev.preventDefault();
       ev.stopPropagation();
       var next = clampImageWidth(dc, startW + (ev.clientX - startX) / scale);
+      var before = frame.getBoundingClientRect();
       applyImageWidth(frame, next);
+      keepImageHandleAnchored(scroller, before, frame.getBoundingClientRect());
       imageResizeMemory[key] = next;
       scheduleEdges();
     }
@@ -194,7 +218,15 @@ export const CLIENT_IMAGE_UX = `  // ===========================================
         openImageLightbox(e.currentTarget.currentSrc || e.currentTarget.src, e.currentTarget.alt);
       });
       handle.addEventListener("pointerdown", (function(f, k){ return function(e){ beginImageResize(e, dc, f, k); }; })(frame, key));
-      handle.addEventListener("dblclick", (function(f, k){ return function(e){ e.preventDefault(); e.stopPropagation(); resetImageWidth(f, k); scheduleEdges(); }; })(frame, key));
+      handle.addEventListener("dblclick", (function(f, k){ return function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        var scroller = nearestImageScrollContainer(f);
+        var before = f.getBoundingClientRect();
+        resetImageWidth(f, k);
+        keepImageHandleAnchored(scroller, before, f.getBoundingClientRect());
+        scheduleEdges();
+      }; })(frame, key));
     }
   }
 
