@@ -8,12 +8,16 @@ import { openUrlToStoredHole } from "./ingest/url.js";
 
 const SETTINGS_KEY = "rh-web-settings";
 const KEY_KEY = "rh-web-api-key";
+const AGENT_COMMAND = "claude mcp add rabbithole -- npx -y github:shlokkhemani/rabbithole";
+const OPENROUTER_WALKTHROUGH_URL = "https://openrouter.ai/docs/quickstart";
 
 const store = new IdbStore();
 let memoryKey = "";
 let currentHost = null;
 let currentHoleId = null;
 let uiStarted = false;
+
+applyInitialWebTheme();
 
 boot().catch((err) => {
   document.body.innerHTML = `<main class="web-fatal"><h1>Rabbithole</h1><p>${escapeHtml(err?.message || String(err))}</p></main>`;
@@ -43,41 +47,84 @@ async function renderHome() {
   document.documentElement.classList.remove("web-canvas-active");
   document.body.classList.remove("mode-canvas");
   document.body.innerHTML = `<main class="web-home">
-    <section class="web-top">
-      <div>
-        <p class="web-kicker">Rabbithole web</p>
-        <h1>Local branching canvas</h1>
-      </div>
-      <button class="web-secondary" id="settings-open" type="button">Settings</button>
-    </section>
-    <section class="settings-panel" id="settings-panel"></section>
-    <section class="new-hole">
-      <div class="new-hole-main">
-        <input id="new-title" class="web-input" placeholder="Title">
-        <div class="url-open-row">
-          <input id="open-url-input" class="web-input" placeholder="Open from URL">
-          <button id="open-url" class="web-secondary" type="button">Open URL</button>
+    <header class="home-hero">
+      <div class="home-nav">
+        <div class="home-wordmark">
+          <span class="home-mark">${bunnyMarkSvg()}</span>
+          <h1>Rabbithole</h1>
         </div>
-        <textarea id="paste-md" class="paste-md" placeholder="Paste markdown here"></textarea>
-        <div class="new-actions">
-          <button id="create-hole" class="web-primary" type="button">New Rabbithole</button>
+        <button class="web-secondary settings-open" id="settings-open" type="button" aria-controls="settings-panel" aria-expanded="false">Settings</button>
+      </div>
+      <p class="home-promise">An infinite canvas for learning.</p>
+      <p class="home-lede">Open a document, select what makes you curious, ask, and the answer opens beside it.</p>
+    </header>
+
+    <section class="hole-list-wrap" id="saved-section" hidden>
+      <div class="hole-list-head">
+        <h2>Saved holes</h2>
+        <button id="refresh-list" class="web-secondary" type="button">Refresh</button>
+      </div>
+      <div id="hole-list" class="hole-list"></div>
+    </section>
+
+    <section class="new-hole" aria-labelledby="composer-heading">
+      <div class="new-hole-main">
+        <div class="composer-head">
+          <div>
+            <h2 id="composer-heading">Open a document</h2>
+            <p>Paste markdown, drop a PDF, or open a URL.</p>
+          </div>
           <label class="drop-md" id="drop-md">
             <input id="file-md" type="file" accept=".md,.pdf,text/markdown,text/plain,application/pdf">
-            <span>Drop a .md/.pdf file or choose one</span>
+            <span>Choose file</span>
           </label>
+        </div>
+        <label class="field title-field" for="new-title">
+          <span>Title</span>
+          <input id="new-title" class="web-input" placeholder="Untitled Rabbithole" autocomplete="off">
+        </label>
+        <label class="field paste-field" for="paste-md">
+          <span>Markdown or notes</span>
+          <textarea id="paste-md" class="paste-md" placeholder="Paste markdown, notes, or source text here."></textarea>
+        </label>
+        <div class="composer-footer">
+          <p class="drop-hint">Drop .md or .pdf anywhere here.</p>
+          <button id="create-hole" class="web-primary" type="button">Open on the canvas</button>
+        </div>
+        <div class="url-open-row">
+          <label class="field url-field" for="open-url-input">
+            <span>URL</span>
+            <input id="open-url-input" class="web-input" placeholder="https://example.com/paper.pdf" inputmode="url" autocomplete="url">
+          </label>
+          <button id="open-url" class="web-secondary" type="button">Open URL</button>
         </div>
         <div id="ingest-status" class="ingest-status" aria-live="polite"></div>
       </div>
     </section>
-    <section class="hole-list-wrap">
-      <div class="hole-list-head"><h2>Saved holes</h2><button id="refresh-list" class="web-secondary" type="button">Refresh</button></div>
-      <div id="hole-list" class="hole-list"></div>
+
+    <section class="settings-panel home-settings" id="settings-panel" aria-label="AI provider settings"></section>
+
+    <section class="home-footnotes" aria-label="Setup notes">
+      <span id="empty-note" class="empty-note" hidden>No saved holes yet.</span>
+      <a href="${OPENROUTER_WALKTHROUGH_URL}" target="_blank" rel="noreferrer">30-second OpenRouter key walkthrough</a>
+      <span class="agent-path">Using a coding agent? <code>${escapeHtml(AGENT_COMMAND)}</code> <button class="copy-command" type="button" data-copy-agent>Copy</button></span>
     </section>
   </main><div id="web-toast" class="web-toast" aria-live="polite"></div>`;
 
   initSettingsPanel();
+  const settings = loadSettings();
+  const needsKey = presetFor(settings.preset).requires_key && !getApiKey(settings);
+  const settingsPanel = document.getElementById("settings-panel");
+  const settingsOpen = document.getElementById("settings-open");
+  settingsPanel.classList.toggle("expanded", needsKey);
+  settingsPanel.classList.toggle("needs-key", needsKey);
+  settingsOpen.setAttribute("aria-expanded", settingsPanel.classList.contains("expanded") ? "true" : "false");
   document.getElementById("settings-open").addEventListener("click", () => {
-    document.getElementById("settings-panel").classList.toggle("expanded");
+    settingsPanel.classList.toggle("expanded");
+    settingsOpen.setAttribute("aria-expanded", settingsPanel.classList.contains("expanded") ? "true" : "false");
+    if (settingsPanel.classList.contains("expanded")) {
+      settingsPanel.querySelector("select, input, button, summary")?.focus();
+    }
   });
   document.getElementById("create-hole").addEventListener("click", createFromPaste);
   document.getElementById("open-url").addEventListener("click", createFromUrl);
@@ -88,6 +135,9 @@ async function renderHome() {
     }
   });
   document.getElementById("refresh-list").addEventListener("click", renderHoleList);
+  document.querySelectorAll("[data-copy-agent]").forEach((button) => {
+    button.addEventListener("click", () => copyText(AGENT_COMMAND, "Command copied."));
+  });
   initDrop();
   await renderHoleList();
 }
@@ -95,18 +145,21 @@ async function renderHome() {
 async function renderHoleList() {
   const listEl = document.getElementById("hole-list");
   if (!listEl) return;
+  const savedSection = document.getElementById("saved-section");
+  const emptyNote = document.getElementById("empty-note");
   const holes = await store.listHoles();
   if (!holes.length) {
-    listEl.innerHTML = `<div class="empty-state">
-      <p>No local holes yet.</p>
-      <p class="agent-path">Using a coding agent? <code>claude mcp add rabbithole -- npx -y github:shlokkhemani/rabbithole</code></p>
-    </div>`;
+    listEl.innerHTML = "";
+    if (savedSection) savedSection.hidden = true;
+    if (emptyNote) emptyNote.hidden = false;
     return;
   }
+  if (savedSection) savedSection.hidden = false;
+  if (emptyNote) emptyNote.hidden = true;
   listEl.innerHTML = holes.map((hole) => `<article class="hole-row" data-hole="${escapeAttr(hole.hole_id)}">
     <button class="hole-open" type="button">
       <span class="hole-title">${escapeHtml(hole.title || "Untitled")}</span>
-      <span class="hole-meta">${escapeHtml(formatDate(hole.updated_at))} · ${hole.node_count} ${hole.node_count === 1 ? "node" : "nodes"}</span>
+      <span class="hole-meta"><span>${escapeHtml(formatRelativeDate(hole.updated_at))}</span><span>${hole.node_count} ${hole.node_count === 1 ? "node" : "nodes"}</span></span>
     </button>
     <button class="hole-delete" type="button" aria-label="Delete ${escapeAttr(hole.title || "Untitled")}">Delete</button>
   </article>`).join("");
@@ -146,12 +199,14 @@ function initDrop() {
   for (const type of ["dragenter", "dragover"]) {
     zone.addEventListener(type, (event) => {
       event.preventDefault();
+      zone.classList.add("dragging");
       drop.classList.add("dragging");
     });
   }
   for (const type of ["dragleave", "drop"]) {
     zone.addEventListener(type, (event) => {
       event.preventDefault();
+      zone.classList.remove("dragging");
       drop.classList.remove("dragging");
     });
   }
@@ -335,37 +390,86 @@ function initCanvasSettings() {
 function initSettingsPanel() {
   const panel = document.getElementById("settings-panel");
   const settings = loadSettings();
-  if (!getApiKey(settings)) panel.classList.add("expanded");
   const presetOptions = Object.values(BRAIN_PRESETS).map((preset) => {
     const label = preset.recommended ? `${preset.label} (recommended)` : preset.label;
     return `<option value="${preset.id}" ${settings.preset === preset.id ? "selected" : ""}>${escapeHtml(label)}</option>`;
   }).join("");
-  panel.innerHTML = `<div class="settings-grid">
-    <label>Provider <select id="provider-preset">${presetOptions}</select></label>
-    <label>Base URL <input id="provider-base" value="${escapeAttr(settings.base_url || "")}"></label>
-    <label>Answer model <input id="answer-model" value="${escapeAttr(settings.answer_model || "")}"></label>
-    <label>Author model <input id="author-model" value="${escapeAttr(settings.author_model || "")}"></label>
-    <label>Fetch proxy URL <input id="fetch-proxy-url" value="${escapeAttr(settings.fetch_proxy_url || "")}" placeholder="https://your-worker.example/?url="></label>
-    <label>API key <input id="api-key" type="password" autocomplete="off" placeholder="sk-..." value="${escapeAttr(getApiKey(settings))}"></label>
-    <label class="check-row"><input id="session-only" type="checkbox" ${settings.session_only !== false ? "checked" : ""}> Session only</label>
-  </div>
-  <div class="key-walkthrough">
-    <strong>OpenRouter key in 30 seconds</strong>
-    <span>Open openrouter.ai, create a key, paste it here, keep OpenRouter selected, then ask from any selection.</span>
-  </div>
-  <div class="custom-csp-note">Custom remote origins require editing this static app's CSP. Localhost custom endpoints are allowed by default.</div>
-  <button id="save-settings" class="web-primary" type="button">Save settings</button>`;
+  panel.dataset.preset = presetFor(settings.preset).id;
+  panel.innerHTML = `<div class="settings-inner">
+    <div class="settings-head">
+      <div>
+        <h2>Provider settings</h2>
+        <p>Connect the model Rabbithole uses when you ask from a selection.</p>
+      </div>
+    </div>
+    <div class="settings-basic">
+      <label class="field provider-field" for="provider-preset">
+        <span>Provider</span>
+        <select id="provider-preset">${presetOptions}</select>
+      </label>
+      <label class="field custom-only" for="provider-base">
+        <span>Base URL</span>
+        <input id="provider-base" value="${escapeAttr(settings.base_url || "")}" placeholder="http://localhost:11434/v1">
+      </label>
+      <div class="field key-field">
+        <label for="api-key">API key</label>
+        <div class="secret-input">
+          <input id="api-key" type="password" autocomplete="off" placeholder="${escapeAttr(apiKeyPlaceholder(settings.preset))}" value="${escapeAttr(getApiKey(settings))}">
+          <button id="api-key-toggle" class="web-secondary" type="button" aria-label="Show API key" aria-pressed="false">Show</button>
+        </div>
+      </div>
+      <label class="switch-field" for="session-only">
+        <input id="session-only" type="checkbox" role="switch" ${settings.session_only !== false ? "checked" : ""}>
+        <span class="switch-track" aria-hidden="true"></span>
+        <span class="switch-copy"><strong>Session only</strong><small>Keep this key in memory for this tab.</small></span>
+      </label>
+    </div>
+    <details class="settings-advanced">
+      <summary>Advanced</summary>
+      <div class="settings-advanced-grid">
+        <label class="field" for="answer-model">
+          <span>Answer model</span>
+          <input id="answer-model" value="${escapeAttr(settings.answer_model || "")}">
+        </label>
+        <label class="field" for="author-model">
+          <span>Author model</span>
+          <input id="author-model" value="${escapeAttr(settings.author_model || "")}">
+        </label>
+        <label class="field wide-field" for="fetch-proxy-url">
+          <span>Fetch proxy URL</span>
+          <input id="fetch-proxy-url" value="${escapeAttr(settings.fetch_proxy_url || "")}" placeholder="https://your-worker.example/?url=">
+        </label>
+        <p class="custom-csp-note wide-field">Custom remote origins require editing this static app's CSP. Localhost custom endpoints are allowed by default.</p>
+      </div>
+    </details>
+    <div class="settings-actions">
+      <a class="key-walkthrough" href="${OPENROUTER_WALKTHROUGH_URL}" target="_blank" rel="noreferrer">30-second OpenRouter key walkthrough</a>
+      <button id="save-settings" class="web-primary" type="button">Save settings</button>
+    </div>
+  </div>`;
 
   panel.querySelector("#provider-preset").addEventListener("change", (event) => {
     const next = settingsForPreset(event.target.value, readSettingsForm());
+    panel.dataset.preset = next.preset;
     panel.querySelector("#provider-base").value = next.base_url;
     panel.querySelector("#answer-model").value = next.answer_model;
     panel.querySelector("#author-model").value = next.author_model;
+    panel.querySelector("#api-key").placeholder = apiKeyPlaceholder(next.preset);
+  });
+  panel.querySelector("#api-key-toggle").addEventListener("click", () => {
+    const input = panel.querySelector("#api-key");
+    const showing = input.type === "text";
+    input.type = showing ? "password" : "text";
+    const button = panel.querySelector("#api-key-toggle");
+    button.textContent = showing ? "Show" : "Hide";
+    button.setAttribute("aria-label", showing ? "Show API key" : "Hide API key");
+    button.setAttribute("aria-pressed", showing ? "false" : "true");
   });
   panel.querySelector("#save-settings").addEventListener("click", () => {
     const next = readSettingsForm();
     saveSettings(next);
     showToast({ message: "Settings saved." });
+    panel.classList.toggle("needs-key", presetFor(next.preset).requires_key && !getApiKey(next));
     if (currentHost) {
       const key = getApiKey(next);
       currentHost.brain = key || !presetFor(next.preset).requires_key ? createBrain(next, key) : null;
@@ -464,10 +568,26 @@ function holeIdFromHash() {
   return match ? decodeURIComponent(match[1]) : "";
 }
 
-function formatDate(value) {
+function formatRelativeDate(value) {
   const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return "Unknown date";
-  return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  if (!date || Number.isNaN(date.getTime())) return "Updated at an unknown time";
+  const deltaSeconds = Math.round((date.getTime() - Date.now()) / 1000);
+  const abs = Math.abs(deltaSeconds);
+  const ranges = [
+    [60, "second", 1],
+    [60 * 60, "minute", 60],
+    [60 * 60 * 24, "hour", 60 * 60],
+    [60 * 60 * 24 * 30, "day", 60 * 60 * 24],
+    [60 * 60 * 24 * 365, "month", 60 * 60 * 24 * 30],
+    [Infinity, "year", 60 * 60 * 24 * 365],
+  ];
+  try {
+    const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+    const [, unit, divisor] = ranges.find(([limit]) => abs < limit);
+    return `Updated ${formatter.format(Math.round(deltaSeconds / divisor), unit)}`;
+  } catch {
+    return `Updated ${date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+  }
 }
 
 function blobToDataUrl(blob) {
@@ -490,4 +610,53 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value).replace(/'/g, "&#39;");
+}
+
+function applyInitialWebTheme() {
+  try {
+    let savedTheme = localStorage.getItem("rh-theme");
+    if (savedTheme !== "dark" && savedTheme !== "light") savedTheme = "";
+    if (!savedTheme && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) savedTheme = "dark";
+    if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme);
+  } catch {}
+}
+
+async function copyText(text, message) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    fallbackCopyText(text);
+  }
+  showToast({ message });
+}
+
+function fallbackCopyText(text) {
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.left = "-999px";
+  document.body.append(area);
+  area.select();
+  try { document.execCommand("copy"); } catch {}
+  area.remove();
+}
+
+function apiKeyPlaceholder(presetId) {
+  switch (presetFor(presetId).id) {
+    case "openrouter": return "sk-or-v1-...";
+    case "anthropic": return "sk-ant-...";
+    case "openai": return "sk-...";
+    default: return "optional";
+  }
+}
+
+function bunnyMarkSvg() {
+  return `<svg width="24" height="24" viewBox="0 0 64 64" fill="currentColor" aria-hidden="true">
+    <ellipse cx="30" cy="17" rx="4.6" ry="12.5" transform="rotate(20 30 17)"></ellipse>
+    <ellipse cx="21.5" cy="15.5" rx="4.6" ry="13" transform="rotate(3 21.5 15.5)"></ellipse>
+    <circle cx="21" cy="33" r="9.5"></circle>
+    <ellipse cx="36" cy="45" rx="17" ry="13.5"></ellipse>
+    <circle cx="52.5" cy="49" r="5"></circle>
+  </svg>`;
 }

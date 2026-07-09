@@ -71,6 +71,7 @@ try {
   assert(pdfState.raw.includes("Integral int_0^1"));
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await openAdvancedSettings(page);
   await page.fill("#fetch-proxy-url", `${baseUrl}/proxy`);
   await page.click("#save-settings");
   await page.fill("#open-url-input", "https://arxiv.org/abs/1234.5678");
@@ -86,6 +87,7 @@ try {
   assert(urlHole.includes("https://arxiv.org/abs/1234.5678") || urlHole.includes("ar5iv.labs.arxiv.org"));
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await openAdvancedSettings(page);
   await page.fill("#fetch-proxy-url", `${baseUrl}/dead-proxy`);
   await page.click("#save-settings");
   await page.fill("#open-url-input", "https://arxiv.org/abs/9999.0000");
@@ -147,6 +149,10 @@ async function dropPdf(page, bytes) {
     target.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: data }));
     target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: data }));
   }, bytes);
+}
+
+async function openAdvancedSettings(page) {
+  await page.locator(".settings-advanced summary").click();
 }
 
 function articleHtml(title) {
