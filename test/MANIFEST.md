@@ -161,6 +161,45 @@ Scenario references use the Part VI group and shortened ledger wording. `—` me
 | portable import recreates document and binary asset | C1 | Protects cross-context portable import/export. | Data: import ID collision (fresh import only; no collision) |
 | publish artifact files, redirects, and public copy | C1 | Protects deployment/package website output and URLs. | Migration/deploy: URLs/deploy compatibility (outside the four named ledger cases) |
 
+## `stage13-data-edges-verify.mjs`
+
+| Case | Category | Rationale | Scenario-ledger entries covered |
+|---|---|---|---|
+| future format_version is clearly refused | C1 | Protects the public portable-file version boundary and its recoverable refusal. | Data: future `format_version` clear refusal |
+| future schema_version is legibly refused | C1 | Ensures old builds refuse unknown persisted schemas instead of silently dropping fields. | Data: new-format document through an old build refuses; future schema version |
+| schema_version null backfills, persists, and reloads | C1 | Protects forever-readable legacy files and idempotent migration through the filesystem store. | Data: `schema_version: null` legacy backfill; Migration/deploy: old storage/idempotent migrations |
+| malformed JSON, base64, and wrong-type fields reject without crashing | C1 | Exercises portable and schema trust boundaries with representative malformed inputs. | Data: malformed JSON/base64; hand-edited payload types |
+| unicode, emoji, and RTL titles survive validate-persist-reload | C1 | Protects lossless international text across validation and filesystem persistence. | Data: unicode/emoji/RTL titles |
+| hand-edited snapshot payload validation | C4 | Records that current snapshots have no import validator or size cap; skipped until the Phase 7 snapshot boundary exists. | Data: hand-edited snapshot payloads |
+| exact 20 MB asset is accepted and one byte over is rejected | C1 | Pins both sides of the documented per-asset byte boundary using generated data. | Data: 20MB asset boundary |
+
+## `stage13-roundtrip-verify.mjs`
+
+| Case | Category | Rationale | Scenario-ledger entries covered |
+|---|---|---|---|
+| all corpus fixtures are normalized fixed points and export-idempotent | C1 | Protects portable migration, assets, durable asks, and filesystem persistence across repeated import/export projections. | Data: portable compatibility; `schema_version: null`; unicode/emoji/RTL; very wide holes; durable asks per host semantics |
+| import collision mints a fresh hole_id and preserves content | C1 | Protects collision-safe identity generation without content or asset loss. | Data: import ID collision |
+
+## `stage14-reducer-conformance.mjs`
+
+| Case | Category | Rationale | Scenario-ledger entries covered |
+|---|---|---|---|
+| branch_request happy path | C2 | Pending branch construction and URL inheritance are observable document behavior. | — |
+| branch_request missing parent throws | C2 | Invalid branch requests must fail rather than create detached nodes. | — |
+| branch_request missing node_id throws | C2 | Branch nodes require stable identity. | — |
+| node_progress grows then idempotently replays | C2 | Full-markdown replacement and same-text replay define current streaming behavior. | Generation: durable streaming (reducer side) |
+| stale node_progress currently wins | C4 | Records the acknowledged lack of `{id, seq}` ordering without blessing it as product behavior; retired by the Phase 5/6 order guard. | Generation: stale progress after newer progress |
+| node_answered updates existing pending node | C2 | Completing an existing pending node is core generation behavior. | — |
+| node_answered synthesizes unknown node | C2 | Final answers may materialize a node when no pending node exists. | — |
+| delete_node subtree collection and effects | C2 | Deletion must remove descendants and return sufficient effect data for consumers. | — |
+| delete_node explicit node_ids and effects | C2 | Explicit deletion lists are part of reducer behavior and effect reporting. | — |
+| root delete throws | C2 | The starting document is protected from node deletion. | — |
+| node_update and nodes_update field application | C2 | Supported presentation fields must normalize consistently while unknown nodes remain untouched. | — |
+| view_state normalization | C2 | Persisted navigation state has a normalized shape and bounded camera scale. | — |
+| unknown event type throws | C2 | Unsupported vocabulary must fail explicitly rather than silently diverge. | — |
+| prior-state node mutation probe | C3 | Measurement point for the Phase 5 purity decision; shared-node mutation is explicitly not a product contract. | — |
+| Node/Chromium reducer parity | C2 | The deterministic DOM-free reducer must produce identical projections in both supported execution contexts. | — |
+
 ## Unwired: `evals/run-eval.mjs`
 
 These live-provider eval cases run only through `npm run eval`; their regex/heuristic scoring makes them behavioral probes, not deterministic golden masters.
@@ -186,12 +225,12 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 
 | Category | Count |
 |---|---:|
-| C1 compatibility contract | 25 |
-| C2 behavioral product contract | 58 |
-| C3 implementation snapshot | 8 |
-| C4 known defect | 6 |
+| C1 compatibility contract | 33 |
+| C2 behavioral product contract | 71 |
+| C3 implementation snapshot | 9 |
+| C4 known defect | 8 |
 | C5 design target | 0 |
-| **Total** | **97** |
+| **Total** | **121** |
 
 ## Known-defect fossils
 
@@ -201,6 +240,12 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 - `stage10-web-verify.mjs:179-224` pins rail padding (`12px`, `7px`, `8px`), bottom gap (`14px`), and width (`<=226px`): per-screen magic design values Phase 2 intends to centralize.
 - `stage10-web-verify.mjs:336-379` pins settings alignment, edge fallback, toolbar gap, and optical SVG offsets; `stage10-web-verify.mjs:408-445` pins share surface equality and exact shell/item padding. These fossilize bespoke anchoring/surface geometry that Phases 2–4 replace.
 - No assertion requires settings `innerHTML` rebuilding or focus-hunting. `stage2-verify.mjs:253-271` does rebuild a synthetic content container via `innerHTML`, but its asserted contract is visual mount identity/cache behavior, not that settings/chrome must rebuild. No current case asserts focus restoration after settings close, so the bespoke focus-hunting debt is unprotected rather than fossilized.
+- `stage14-reducer-conformance.mjs` "stale node_progress currently wins" pins last-write-wins progress ordering — the gap the `{id, seq}` order guard (Phases 5/6) closes.
+- `stage13-data-edges-verify.mjs` "hand-edited snapshot payload validation" is a skip-with-reason: snapshots currently have no inert import boundary, validator, or size cap (built in Phase 7).
+
+## Baseline defects on record (found by instruments, not fixed)
+
+- `FsStore.getAsset()` returns a `Buffer`, but `buildRabbitholeExport()` assumes Blob and calls `blob.arrayBuffer()` (`src/web/portable.js:139`) — exporting an asset-bearing hole directly from the filesystem store throws. Unreachable in today's product (web export runs against the IDB store, which returns Blobs), but it is a store-port contract violation; the typed store port (Phase 5) and artifact unification (Phase 7) must resolve it. stage13's round-trip test documents this with a test-local Blob-converting subclass.
 
 ## Gap analysis
 

@@ -1,0 +1,98 @@
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { MAX_ASSET_BYTES } from "../src/core/assets.js";
+import { migratePersistedHole, toPersistedHole } from "../src/core/schema.js";
+import { FsStore } from "../src/node/fs-store.js";
+import { importRabbitholeFile, parseRabbitholeFile } from "../src/web/portable.js";
+
+const stamp = "2026-01-01T00:00:00.000Z";
+const validNode = (overrides = {}) => ({
+  id: "root", parent_id: null, title: "Root", markdown: "Body",
+  base_url: null, base_url_source: null, origin: null,
+  position: { x: 0, y: 0 }, size: null, font_scale: 1, collapsed: false,
+  status: "answered", read: true, created_at: stamp, ...overrides,
+});
+const validHole = (overrides = {}) => ({
+  schema_version: 1, hole_id: "edge-hole", title: "Edge Hole", root_id: "root",
+  created_at: stamp, updated_at: stamp, view_state: null, nodes: [validNode()], ...overrides,
+});
+const portable = (hole = validHole(), assets = {}) => JSON.stringify({
+  format: "rabbithole", format_version: 1, hole, assets,
+});
+async function newStore() {
+  process.env.RABBITHOLE_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "rabbithole-stage13-"));
+  return new FsStore();
+}
+
+assert.throws(
+  () => parseRabbitholeFile(JSON.stringify({ format: "rabbithole", format_version: 2, hole: {}, assets: {} })),
+  /unsupported Rabbithole file format/i,
+);
+console.log("ok stage13: future format_version is clearly refused");
+
+await assert.rejects(
+  () => importRabbitholeFile(new FsStore(), portable(validHole({ schema_version: 2 }))),
+  /Unsupported Rabbithole schema_version 2/,
+);
+console.log("ok stage13: future schema_version is legibly refused");
+
+{
+  const store = await newStore();
+  const legacyText = await fs.readFile(new URL("./fixtures/corpus/10-schema-null-legacy.rabbithole", import.meta.url), "utf8");
+  const result = await importRabbitholeFile(store, legacyText);
+  const loaded = await store.loadHole(result.hole_id);
+  assert.equal(loaded.schema_version, 1);
+  assert.equal(loaded.nodes[0].title, "");
+  assert.equal(loaded.nodes[0].status, "answered");
+  assert.equal((await store.loadHole(result.hole_id)).schema_version, 1, "reload remains migrated");
+}
+console.log("ok stage13: schema_version null backfills, persists, and reloads");
+
+assert.throws(() => parseRabbitholeFile("{ nope"), /valid JSON/);
+await assert.rejects(async () => importRabbitholeFile(await newStore(), portable(validHole(), { "bad.png": "not+base64!" })), /not valid base64/);
+for (const hole of [
+  validHole({ title: 42 }),
+  validHole({ nodes: "not-an-array" }),
+  validHole({ nodes: [validNode({ markdown: { text: "wrong" } })] }),
+  validHole({ nodes: [validNode({ parent_id: 7 })] }),
+]) {
+  await assert.rejects(async () => importRabbitholeFile(await newStore(), portable(hole)), /must be/);
+}
+console.log("ok stage13: malformed JSON, base64, and wrong-type fields reject without crashing");
+
+{
+  const title = "Café 漢字 🐇🕳️ — مرحبا — שלום";
+  const nodeTitle = "naïve 🚀 العربية עברית";
+  const persisted = toPersistedHole(validHole({ title, nodes: [validNode({ title: nodeTitle })] }), { updatedAt: stamp });
+  const migrated = migratePersistedHole(JSON.parse(JSON.stringify(persisted))).hole;
+  const store = await newStore();
+  await store.saveHole(migrated);
+  const loaded = await store.loadHole(migrated.hole_id);
+  assert.equal(loaded.title, title);
+  assert.equal(loaded.nodes[0].title, nodeTitle);
+}
+console.log("ok stage13: unicode, emoji, and RTL titles survive validate-persist-reload");
+
+// KNOWN DEFECT / Phase 7 gate: snapshots currently embed ad-hoc hydration in an
+// executable script and there is no snapshot import/extraction boundary to call.
+// Consequently tampered types and oversized payloads cannot yet be runtime-
+// rejected. Keep this explicit skip until snapshot import flows through
+// parseRabbitholeFile -> migratePersistedHole with strict caps (THESEUS Phase 7).
+console.log("skip stage13: hand-edited snapshot payload validation (known defect: no snapshot import validator or size cap)");
+
+{
+  const exact = Buffer.alloc(MAX_ASSET_BYTES, 0xa5).toString("base64");
+  const over = Buffer.alloc(MAX_ASSET_BYTES + 1, 0xa5).toString("base64");
+  const exactStore = await newStore();
+  const accepted = await importRabbitholeFile(exactStore, portable(validHole({ hole_id: "asset-exact" }), { "limit.png": exact }));
+  assert.equal((await exactStore.getAsset(accepted.hole_id, "limit.png")).byteLength, MAX_ASSET_BYTES);
+  await assert.rejects(
+    async () => importRabbitholeFile(await newStore(), portable(validHole({ hole_id: "asset-over" }), { "limit.png": over })),
+    /exceeds 20 MB/,
+  );
+}
+console.log("ok stage13: exact 20 MB asset is accepted and one byte over is rejected");
+
+console.log("stage13 data-edge verification passed");
