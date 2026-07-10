@@ -1146,7 +1146,7 @@ html[data-theme="light"] .native-select-wrap select {
 }
 
 .key-status.valid {
-  color: color-mix(in srgb, #27a36a 86%, var(--fg));
+  color: color-mix(in srgb, var(--color-success) 86%, var(--fg));
 }
 
 .key-status.invalid {

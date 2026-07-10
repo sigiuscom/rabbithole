@@ -1,44 +1,23 @@
+import { DESIGN_TOKENS } from "./tokens.js";
+
 /*
  * Extracted from the former canvas.js monolith. Keep this string as the exact
  * self-contained browser payload; behavior is verified by the inline-script
  * node --check gate.
  */
-export const CANVAS_STYLES = `* { box-sizing: border-box; margin: 0; padding: 0; }
+export const CANVAS_STYLES = `${DESIGN_TOKENS}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 html[data-theme="dark"] {
-  --bg: #1a1918; --grid: #262422; --fg: #cfccc4; --fg-bold: #efece5; --fg-dim: #94908a; --fg-faint: #6d6963;
-  --border: #2e2c29; --border-focus: #4c4945; --node-bg: #201f1d; --node-head: #262523;
-  --code-bg: #151412; --accent: #8faaf0; --accent-contrast: #12141c; --edge: #3d3b37; --bar-bg: #1e1d1b;
-  --hl: rgba(143,170,240,0.16); --hl-strong: rgba(143,170,240,0.30);
-  --warn: #d9a866; --sk-base: rgba(255,255,255,0.06);
   --hljs-fg: #c9d1d9; --hljs-keyword: #ff7b72; --hljs-entity: #d2a8ff; --hljs-constant: #79c0ff;
   --hljs-string: #a5d6ff; --hljs-variable: #ffa657; --hljs-comment: #8b949e; --hljs-tag: #7ee787;
   --hljs-section: #1f6feb; --hljs-bullet: #f2cc60; --hljs-addition: #aff5b4; --hljs-addition-bg: #033a16;
   --hljs-deletion: #ffdcd7; --hljs-deletion-bg: #67060c;
-  --shadow: 0 6px 24px rgba(0,0,0,0.45);
 }
 html[data-theme="light"] {
-  --bg: #f5f3ee; --grid: #e5e2da; --fg: #3b3833; --fg-bold: #191713; --fg-dim: #7c776d; --fg-faint: #a9a498;
-  --border: #e4e1d8; --border-focus: #b9b4a8; --node-bg: #fdfcfa; --node-head: #f7f5f0;
-  --code-bg: #f1eee7; --accent: #3b5bcc; --accent-contrast: #ffffff; --edge: #cdc9be; --bar-bg: #faf9f5;
-  --hl: rgba(59,91,204,0.10); --hl-strong: rgba(59,91,204,0.22);
-  --warn: #a3690e; --sk-base: rgba(59,55,45,0.08);
   --hljs-fg: #24292e; --hljs-keyword: #d73a49; --hljs-entity: #6f42c1; --hljs-constant: #005cc5;
   --hljs-string: #032f62; --hljs-variable: #e36209; --hljs-comment: #6a737d; --hljs-tag: #22863a;
   --hljs-section: #005cc5; --hljs-bullet: #735c0f; --hljs-addition: #22863a; --hljs-addition-bg: #f0fff4;
   --hljs-deletion: #b31d28; --hljs-deletion-bg: #ffeef0;
-  --shadow: 0 4px 18px rgba(28,25,18,0.08);
-}
-:root {
-  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-doc: Charter, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  --popover-bg: color-mix(in srgb, var(--bar-bg) 88%, transparent);
-  --popover-border: 1px solid var(--border);
-  --popover-radius: 12px;
-  --popover-blur: blur(16px) saturate(1.3);
-  --popover-shadow: 0 1px 2px rgba(0,0,0,0.08), 0 16px 40px -16px rgba(0,0,0,0.4);
-  --popover-speed: 110ms;
-  --popover-ease: cubic-bezier(0.23, 1, 0.32, 1);
 }
 html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 body {
