@@ -200,6 +200,33 @@ Scenario references use the Part VI group and shortened ledger wording. `—` me
 | prior-state node mutation probe | C3 | Measurement point for the Phase 5 purity decision; shared-node mutation is explicitly not a product contract. | — |
 | Node/Chromium reducer parity | C2 | The deterministic DOM-free reducer must produce identical projections in both supported execution contexts. | — |
 
+## `stage15-security-migrations-verify.mjs`
+
+| Case | Category | Rationale | Scenario-ledger entries covered |
+|---|---|---|---|
+| imported and show-fence injection on live/frozen paths | C2 | Protects the user-visible security boundary for imported markdown and hydratable show content, including script, iframe, handler, JavaScript-URL, and SVG vectors. | Rendering: script/iframe/handler injection via fences and imported payloads, both paths |
+| KaTeX errors and trusted structural markup | C2 | Requires invalid math to degrade safely while valid KaTeX MathML, semantics, annotations, and fraction structure survive both render paths. | Rendering: KaTeX parse errors; trusted MathML sanitizer parity |
+| frozen asset-bearing document with all requests blocked | C1 | Frozen snapshots are a self-contained external artifact and must render their document and embedded assets without attempting network access. | Rendering: frozen viewing fully offline, zero fetches |
+| current provider-key map and single-key-era storage | C1 | Protects current remembered credentials and the readable legacy OpenRouter single-key fallback across repeated loads. | Data: preference/credential storage through every migration |
+| pre-popover custom/local preferences | C1 | Protects the deployed local-provider settings shape, models, endpoint, session-only behavior, theme, and last-hole state. | Data: preference/credential storage through every migration |
+| removed Anthropic/OpenAI provider IDs currently fall back without rewrite | C4 | Records the migration defect without blessing it: removed deployed provider IDs silently select OpenRouter while stale IDs and incompatible settings remain stored. | Data: preference/credential storage through every migration; provider-id renames |
+| preference migration/load idempotence | C1 | Repeated application loads must not drift settings, credential keys, theme, or last-hole state. | Migration/deploy: new code opening old storage, idempotent migrations |
+| credential exclusion from frozen exports | C1 | Device credentials and settings must never enter exported artifacts. | Data: preference/credential storage through every migration; artifact credential non-leakage |
+| portable-import asset MIME metadata loss | C4 | Pins the known defect where base64 import creates an untyped Blob, preventing direct frozen reuse without a typed ingest asset. | Rendering: frozen viewing fully offline; Data: portable asset migration |
+
+## `stage16-budget-gauges.mjs`
+
+Gauges are machine-relative: `test/budgets.json` records `{baseline, tolerance, ceiling, rationale, measured_at_commit}` per gauge; `node test/calibrate-budgets.mjs` re-baselines deliberately. Any worsening requires an explicit recorded trade-off (THESEUS Part III).
+
+| Case | Category | Rationale | Scenario-ledger entries covered |
+|---|---|---|---|
+| live + frozen client bundle byte gauges | C3 | Bundle sizes are implementation-relative; the ratcheted ceiling catches accidental bloat without blessing current size as a contract. | Data: bundle-size budget |
+| snapshot byte gauges (math + asset reference corpus) | C2 | Frozen HTML is a user-shared artifact; its size envelope for reference content is product behavior. | Data: snapshot bytes budget |
+| snapshot build-time gauges | C2 | Export must stay interactive-fast for reference content; min-of-samples with 3x ceiling absorbs host noise. | Data: snapshot build-time budget |
+| cold-open gauge | C2 | Time to the visible interactive landing composer is the first-load product experience. | Rendering: cold open budget |
+| streaming DOM batch count + duration gauges | C2 | A fixed 40-update synthetic stream must stay rAF-coalesced; losing batching is a user-visible regression. | Generation: streaming update budget (rAF count/duration) |
+| save-window gauge | C2 | Elapsed time from final streamed update to persisted markdown bounds the data-loss window on tab close. | Data: export-vs-debounce save window (web path) |
+
 ## Unwired: `evals/run-eval.mjs`
 
 These live-provider eval cases run only through `npm run eval`; their regex/heuristic scoring makes them behavioral probes, not deterministic golden masters.
@@ -225,12 +252,12 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 
 | Category | Count |
 |---|---:|
-| C1 compatibility contract | 33 |
-| C2 behavioral product contract | 71 |
-| C3 implementation snapshot | 9 |
-| C4 known defect | 8 |
+| C1 compatibility contract | 38 |
+| C2 behavioral product contract | 78 |
+| C3 implementation snapshot | 10 |
+| C4 known defect | 10 |
 | C5 design target | 0 |
-| **Total** | **121** |
+| **Total** | **136** |
 
 ## Known-defect fossils
 
@@ -246,6 +273,9 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 ## Baseline defects on record (found by instruments, not fixed)
 
 - `FsStore.getAsset()` returns a `Buffer`, but `buildRabbitholeExport()` assumes Blob and calls `blob.arrayBuffer()` (`src/web/portable.js:139`) — exporting an asset-bearing hole directly from the filesystem store throws. Unreachable in today's product (web export runs against the IDB store, which returns Blobs), but it is a store-port contract violation; the typed store port (Phase 5) and artifact unification (Phase 7) must resolve it. stage13's round-trip test documents this with a test-local Blob-converting subclass.
+- Removed deployed provider IDs `anthropic` and `openai` are not migrated: `presetFor()` silently selects OpenRouter behavior while `rh-web-settings.preset` keeps the stale ID and historical endpoint/model fields stay stored, incompatible with the selected provider. Phase 3's settings slice must ship an explicit provider-ID migration. Pinned as C4 in stage15.
+- The legacy single `rh-web-api-key` remains usable as the OpenRouter fallback but is never migrated into the `rh-web-api-keys` map — there is no canonical rewrite pass on load. Phase 3 must resolve alongside the provider-ID migration. Covered by stage15's single-key-era fixture.
+- `base64ToBlob()` (`src/web/portable.js`) creates an untyped Blob, so a directly imported asset snapshots to an `application/octet-stream` data URL that the frozen image sanitizer rejects. Typed asset handling lands with the store port (Phase 5) / artifact unification (Phase 7). Pinned as C4 in stage15.
 
 ## Gap analysis
 
@@ -253,11 +283,11 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 
 “No covering test” means no case directly drives the stated scenario end to end; happy-path, structural, or analogous checks noted in tables do not count. Ordered by the phase that first needs the gap.
 
-**Phase 1 — instruments/data/security baseline**
+**Phase 1 — instruments/data/security baseline** (most entries closed by stages 13–16; remaining:)
 
-- Data: future `format_version` clear refusal; `schema_version: null` legacy backfill; exact 20 MB asset boundary generated in-test; malformed portable JSON/base64; unicode/emoji/RTL titles; genuinely very large holes with a budget; hand-edited snapshot payload runtime rejection; new-format document through an old build with extension-bag survival/refusal; preference/credential storage through every migration; export-vs-debounce timing per projection.
-- Rendering: fence/payload script, iframe, and handler injection exercised on both live and frozen paths; KaTeX parse failure with proof trusted MathML is not sanitizer-damaged; reduced motion; semantic dark parity; frozen viewer opened offline with zero fetches.
-- Migration/deploy: a real mid-session deploy (new code opening old IndexedDB, with migration rerun/idempotence); CLI version skew with an older CLI against additive wire changes; `npx` publish-install smoke on Node 18 and 20; a v0.1-era hole retained through Phase 9. (The IDB v0.2 fixture is useful migration coverage, but does not exercise deployment during a session.)
+- Data: genuinely very large holes with a budget (the wide-hole fixture and snapshot gauges only cover reference-sized content); extension-bag survival through an old build (refusal is covered; survival semantics await Phase 5 typing); hand-edited snapshot payload runtime rejection (C4 skip until the Phase 7 import boundary); export-vs-debounce timing for the MCP/filesystem projection (stage16's save-window gauge covers the web path only).
+- Rendering: reduced motion; semantic dark parity.
+- Migration/deploy: a real mid-session deploy (new code opening old IndexedDB, with migration rerun/idempotence — stage15 covers localStorage preferences, not the IDB schema during a live session); CLI version skew with an older CLI against additive wire changes; `npx` publish-install smoke on Node 18 and 20; a v0.1-era hole retained through Phase 9.
 
 **Phase 3 — settings vertical slice**
 
@@ -275,9 +305,9 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 
 | Instrument | Assessment | Evidence / missing work | First needed |
 |---|---|---|---|
-| Fixture corpus | **Partially exists** | Small inline fixtures cover math, show, assets, PDFs, and one v0.2 migration; there is no curated ~20-file corpus, explicit `schema_version:null`, Unicode/RTL, deep lineage, both durable-ask semantics, or generated exact-boundary fixture. | Phase 1 |
-| Golden-master harness | **Partially exists** | Stage 8 calls renderer cases “golden,” but asserts substrings; Stage 10 asserts geometry. There are no per-node semantic DOM projections, targeted screenshots, volatile-field normalization, or reasoned bless workflow. | Phase 1 |
-| Round-trip property tests | **Partially exists** | Stage 12 performs one browser portable export/import example and compares a hand projection. No property generation, fixed points for every projection, repeated round trips, or normalization rules for timestamps/collision IDs. | Phase 1 |
-| Live/frozen parity harness | **Partially exists** | Stages 1/4/6/8 inspect both outputs and Stage 8 separately renders frozen content, but there is no per-content-type semantic equivalence harness. | Phase 1 |
-| Behavioral probes | **Partially exists** | Playwright covers composer, happy-path stream, settings basics, branching, ingestion, and portability; nearly all required stream/abort/retry, delete/undo/assets, mid-stream switching, focus, keyboard-only, and per-host durable-ask probes are missing. | Phase 1, expanded in Phases 3/6 |
-| Budget gauges with tolerances | **Missing** | Stage 1 prints CSS/page bytes and optional Stage 5 prints timing/size, while Stage 10 uses sleeps and hardcoded geometry; none records baseline ceilings with tolerances for rAF update count/duration, layout cost, snapshot bytes/build time, cold open, save window, or bundle sizes. | Phase 1 |
+| Fixture corpus | **Exists** | `test/fixtures/corpus/` holds 20 curated files (math, show, assets, deep lineage, both durable-ask semantics, Unicode/RTL, `schema_version:null`, v0.2 legacy, wide holes) plus the in-test generated 20 MB boundary; stage13 drives all of them. | Phase 1 |
+| Golden-master harness | **Partially exists** | stage14's reducer goldens (`test/fixtures/reducer-goldens/cases.json`) are true reviewable golden masters for state/effects. Renderer-side golden masters remain partial: Stage 8 asserts substrings, Stage 10 asserts geometry; no per-node semantic DOM projections or reasoned bless workflow yet. | Phase 1 |
+| Round-trip property tests | **Exists** | stage13-roundtrip proves all 20 corpus fixtures are normalized fixed points, export-idempotent, and collision-safe through the filesystem projection; stage12 keeps the browser example. | Phase 1 |
+| Live/frozen parity harness | **Partially exists** | stage15 asserts sanitizer, KaTeX/MathML, and asset parity on both paths under network denial; stages 1/4/6/8 inspect both outputs. A per-content-type semantic equivalence harness is still missing. | Phase 1 |
+| Behavioral probes | **Partially exists** | Playwright covers composer, happy-path stream, settings basics, branching, ingestion, portability, and now credential/preference migrations (stage15) and streaming/save timing (stage16). Stream abort/retry, delete/undo during streams, mid-stream switching, focus, keyboard-only, and per-host durable-ask probes land with Phases 3/6. | Phase 1, expanded in Phases 3/6 |
+| Budget gauges with tolerances | **Exists** | stage16 + `test/budgets.json` + `test/calibrate-budgets.mjs`: machine-relative ceilings with recorded tolerances for bundle bytes, snapshot bytes/build time, cold open, streaming rAF batch count/duration, and the save window. Layout-cost gauge still open. | Phase 1 |

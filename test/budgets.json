@@ -1,0 +1,111 @@
+{
+  "note": "Machine-relative ceilings. Run node test/calibrate-budgets.mjs in each enforcement environment; commit worsening only with an explicit recorded trade-off.",
+  "samples": 3,
+  "statistic": "Exact for byte gauges; minimum of repeated samples for timing and DOM-batch gauges.",
+  "budgets": [
+    {
+      "id": "bundle_client_bytes",
+      "description": "Built live client bundle size",
+      "unit": "bytes",
+      "tolerance": 0.05,
+      "rationale": "Exact file size after a deterministic build.",
+      "baseline": 1050667,
+      "ceiling": 1103200.35,
+      "measured_at_commit": "761c56c"
+    },
+    {
+      "id": "bundle_frozen_client_bytes",
+      "description": "Built frozen client bundle size",
+      "unit": "bytes",
+      "tolerance": 0.05,
+      "rationale": "Exact file size after a deterministic build.",
+      "baseline": 1036900,
+      "ceiling": 1088745,
+      "measured_at_commit": "761c56c"
+    },
+    {
+      "id": "snapshot_math_bytes",
+      "description": "Frozen HTML size for the math-heavy reference corpus",
+      "unit": "bytes",
+      "tolerance": 0.05,
+      "rationale": "Exact UTF-8 snapshot size.",
+      "baseline": 1074897,
+      "ceiling": 1128641.85,
+      "measured_at_commit": "761c56c"
+    },
+    {
+      "id": "snapshot_assets_bytes",
+      "description": "Frozen HTML size for the PNG/SVG reference corpus",
+      "unit": "bytes",
+      "tolerance": 0.05,
+      "rationale": "Exact UTF-8 snapshot size including assets.",
+      "baseline": 1075004,
+      "ceiling": 1128754.2,
+      "measured_at_commit": "761c56c"
+    },
+    {
+      "id": "snapshot_math_build_ms",
+      "description": "Mean frozen-HTML build time (20 warm builds) for the math-heavy reference corpus",
+      "unit": "ms",
+      "tolerance": 2,
+      "rationale": "Mean of a 20-build loop defeats timer coarsening; 3x ceiling plus a 25ms floor absorbs host noise.",
+      "floor": 25,
+      "baseline": 0.01,
+      "ceiling": 25,
+      "measured_at_commit": "761c56c"
+    },
+    {
+      "id": "snapshot_assets_build_ms",
+      "description": "Mean frozen-HTML build time (20 warm builds) for the PNG/SVG reference corpus",
+      "unit": "ms",
+      "tolerance": 2,
+      "rationale": "Mean of a 20-build loop defeats timer coarsening; 3x ceiling plus a 25ms floor absorbs host noise.",
+      "floor": 25,
+      "baseline": 0.26,
+      "ceiling": 25,
+      "measured_at_commit": "761c56c"
+    },
+    {
+      "id": "cold_open_ms",
+      "description": "Cold navigation to the visible interactive landing composer",
+      "unit": "ms",
+      "tolerance": 2,
+      "rationale": "Minimum of isolated browser-context samples; 3x ceiling absorbs startup noise.",
+      "baseline": 63.1,
+      "ceiling": 189.3,
+      "measured_at_commit": "761c56c"
+    },
+    {
+      "id": "stream_dom_batches",
+      "description": "DOM mutation batches for a fixed 40-update synthetic stream",
+      "unit": "batches",
+      "tolerance": 1,
+      "rationale": "Minimum observed batch count on an otherwise-quiescent page; 2x ceiling with a 6-batch floor catches loss of rAF coalescing (which produces dozens of batches) without flaking.",
+      "floor": 6,
+      "baseline": 6,
+      "ceiling": 12,
+      "measured_at_commit": "761c56c"
+    },
+    {
+      "id": "stream_update_ms",
+      "description": "Total browser duration for a fixed 40-update synthetic stream",
+      "unit": "ms",
+      "tolerance": 2,
+      "rationale": "Minimum of repeated samples; 3x ceiling absorbs browser scheduling noise.",
+      "baseline": 102.9,
+      "ceiling": 308.7,
+      "measured_at_commit": "761c56c"
+    },
+    {
+      "id": "save_window_ms",
+      "description": "Elapsed time from final streamed DOM update until the final markdown is persisted",
+      "unit": "ms",
+      "tolerance": 1,
+      "rationale": "Minimum of repeated samples; 2x ceiling with a 100ms floor (poll quantization) still catches a lost flush-on-complete, which costs 400ms+.",
+      "floor": 100,
+      "baseline": 52,
+      "ceiling": 104,
+      "measured_at_commit": "761c56c"
+    }
+  ]
+}
