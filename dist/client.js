@@ -4626,20 +4626,62 @@ var RabbitholeClient = (() => {
     }
   }
 
+  // src/core/utils.js
+  var LINE_SEP = new RegExp(String.fromCharCode(8232), "g");
+  var PARA_SEP = new RegExp(String.fromCharCode(8233), "g");
+  function escapeHtml(str) {
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  // src/ui/primitives/button.js
+  var STATEFUL_ARIA = ["aria-haspopup", "aria-controls", "aria-expanded", "aria-pressed"];
+  function attribute(name, value) {
+    if (value === void 0 || value === false || value === null) return "";
+    return " " + name + (value === true ? "" : '="' + escapeHtml(String(value)) + '"');
+  }
+  function buttonAttributes(options2, iconOnly) {
+    var _a2;
+    const label = String(options2.label || "").trim();
+    const ariaLabel = String(options2.ariaLabel || "").trim();
+    if (iconOnly && !ariaLabel) throw new Error("IconButton requires aria-label");
+    if (!iconOnly && !label && !ariaLabel) throw new Error("Button requires an accessible name");
+    const baseClass = options2.bare ? "" : iconOnly ? "tool-btn tool-icon" : "tool-btn";
+    const className = [baseClass, options2.className].filter(Boolean).join(" ");
+    let result = attribute("class", className || void 0) + attribute("id", options2.id) + attribute("type", "button") + attribute("title", options2.title) + attribute("aria-label", ariaLabel || void 0);
+    for (const name of STATEFUL_ARIA) {
+      const camelName = name.replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase());
+      result += attribute(name, (_a2 = options2[name]) != null ? _a2 : options2[camelName]);
+    }
+    const aria = options2.aria || {};
+    for (const [name, value] of Object.entries(aria)) {
+      const attrName = name.startsWith("aria-") ? name : "aria-" + name;
+      if (!STATEFUL_ARIA.includes(attrName) && attrName !== "aria-label") result += attribute(attrName, value);
+    }
+    return result + attribute("hidden", options2.hidden) + attribute("disabled", options2.disabled);
+  }
+  function buttonMarkup(options2 = {}) {
+    const content = (options2.svgIconHtml || "") + escapeHtml(String(options2.label || "")) + (options2.kbdHint ? "<kbd>" + escapeHtml(String(options2.kbdHint)) + "</kbd>" : "");
+    return "<button" + buttonAttributes(options2, false) + ">" + content + "</button>";
+  }
+  function iconButtonMarkup(options2 = {}) {
+    const content = options2.svgIconHtml || escapeHtml(String(options2.icon || ""));
+    return "<button" + buttonAttributes(options2, true) + ">" + content + "</button>";
+  }
+
   // src/core/html/shell.js
   var CANVAS_SHELL = `
 <div id="reader">
   <div id="reader-top">
     <div id="breadcrumb"></div>
-    <button class="activity" id="act-reader" title="Jump to it" aria-label="Jump to active answer"></button>
-    <button class="tool-btn" id="r-textdown" title="Smaller text">A\u2212</button>
-    <button class="tool-btn" id="r-textup" title="Larger text">A+</button>
-    <button class="tool-btn" id="r-canvas" title="Open the spatial canvas">\u2922 Canvas</button>
-    <button class="tool-btn" id="r-share" title="Share, export, synthesize" aria-haspopup="menu" aria-controls="sharemenu" aria-expanded="false">\u2197 Share</button>
-    <button class="tool-btn" id="r-theme" title="Toggle theme" aria-label="Toggle theme">\u25D1</button>
-    <button class="tool-btn" id="r-done" title="End the session (the hole stays saved)">Done</button>
+    ${iconButtonMarkup({ bare: true, className: "activity", id: "act-reader", title: "Jump to it", ariaLabel: "Jump to active answer" })}
+    ${buttonMarkup({ id: "r-textdown", title: "Smaller text", label: "A\u2212" })}
+    ${buttonMarkup({ id: "r-textup", title: "Larger text", label: "A+" })}
+    ${buttonMarkup({ id: "r-canvas", title: "Open the spatial canvas", label: "\u2922 Canvas" })}
+    ${buttonMarkup({ id: "r-share", title: "Share, export, synthesize", label: "\u2197 Share", ariaHaspopup: "menu", ariaControls: "sharemenu", ariaExpanded: "false" })}
+    ${iconButtonMarkup({ bare: true, className: "tool-btn", id: "r-theme", title: "Toggle theme", ariaLabel: "Toggle theme", icon: "\u25D1" })}
+    ${buttonMarkup({ id: "r-done", title: "End the session (the hole stays saved)", label: "Done" })}
   </div>
-  <div id="since"><span class="since-dot"></span><span class="since-msg" id="since-msg"></span><button class="tool-btn" id="since-show">Show me</button><button id="since-x" title="Dismiss" aria-label="Dismiss activity notice">\xD7</button></div>
+  <div id="since"><span class="since-dot"></span><span class="since-msg" id="since-msg"></span>${buttonMarkup({ id: "since-show", label: "Show me" })}${iconButtonMarkup({ bare: true, id: "since-x", title: "Dismiss", ariaLabel: "Dismiss activity notice", icon: "\xD7" })}</div>
   <div id="reader-cols">
     <div id="reader-center">
       <div id="reader-main"></div>
@@ -4656,23 +4698,23 @@ var RabbitholeClient = (() => {
 
 <div id="viewport"><div id="world"><svg id="edges"></svg></div></div>
 <div id="toolbar">
-  <button class="tool-btn tool-icon" id="t-rail" title="Rabbitholes \xB7 S" aria-label="Toggle rabbitholes" aria-expanded="false" aria-controls="web-rail"><svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><rect x="2.5" y="2.75" width="11" height="10.5" rx="1.6"/><path d="M6.25 2.75v10.5"/><rect class="rail-fill" x="3.55" y="3.8" width="1.65" height="8.4" rx="0.82" fill="currentColor" stroke="none"/></svg></button>
-  <button class="tool-btn tool-icon" id="t-new" title="New Rabbithole \xB7 N" aria-label="New Rabbithole"><svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none" aria-hidden="true"><path d="M8 3.25v9.5"/><path d="M3.25 8h9.5"/></svg></button>
+  ${iconButtonMarkup({ id: "t-rail", title: "Rabbitholes \xB7 S", ariaLabel: "Toggle rabbitholes", ariaExpanded: "false", ariaControls: "web-rail", svgIconHtml: '<svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><rect x="2.5" y="2.75" width="11" height="10.5" rx="1.6"/><path d="M6.25 2.75v10.5"/><rect class="rail-fill" x="3.55" y="3.8" width="1.65" height="8.4" rx="0.82" fill="currentColor" stroke="none"/></svg>' })}
+  ${iconButtonMarkup({ id: "t-new", title: "New Rabbithole \xB7 N", ariaLabel: "New Rabbithole", svgIconHtml: '<svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none" aria-hidden="true"><path d="M8 3.25v9.5"/><path d="M3.25 8h9.5"/></svg>' })}
   <span class="sep" id="app-sep"></span>
-  <button class="tool-btn" id="t-reader" title="Back to reading"><svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><path d="M3.75 3.25h4.5c1 0 1.8.8 1.8 1.8v7.7H5.15c-.77 0-1.4-.63-1.4-1.4z"/><path d="M5.15 12.75c-.77 0-1.4-.63-1.4-1.4s.63-1.4 1.4-1.4h4.9"/></svg>Reader</button>
+  ${buttonMarkup({ id: "t-reader", title: "Back to reading", label: "Reader", svgIconHtml: '<svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><path d="M3.75 3.25h4.5c1 0 1.8.8 1.8 1.8v7.7H5.15c-.77 0-1.4-.63-1.4-1.4z"/><path d="M5.15 12.75c-.77 0-1.4-.63-1.4-1.4s.63-1.4 1.4-1.4h4.9"/></svg>' })}
   <span class="sep"></span>
-  <button class="tool-btn tool-icon" id="t-zout" title="Zoom out" aria-label="Zoom out">\u2212</button>
-  <button class="tool-btn" id="zoom-label" title="Zoom to 100%" aria-label="Zoom to 100%">100%</button>
-  <button class="tool-btn tool-icon" id="t-zin" title="Zoom in" aria-label="Zoom in">+</button>
-  <button class="tool-btn tool-icon" id="t-frame" title="Frame everything \xB7 F" aria-label="Frame everything \xB7 F"><svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><path d="M5.8 3.25H3.25V5.8"/><path d="M10.2 3.25h2.55V5.8"/><path d="M12.75 10.2v2.55H10.2"/><path d="M5.8 12.75H3.25V10.2"/></svg></button>
+  ${iconButtonMarkup({ id: "t-zout", title: "Zoom out", ariaLabel: "Zoom out", icon: "\u2212" })}
+  ${buttonMarkup({ id: "zoom-label", title: "Zoom to 100%", ariaLabel: "Zoom to 100%", label: "100%" })}
+  ${iconButtonMarkup({ id: "t-zin", title: "Zoom in", ariaLabel: "Zoom in", icon: "+" })}
+  ${iconButtonMarkup({ id: "t-frame", title: "Frame everything \xB7 F", ariaLabel: "Frame everything \xB7 F", svgIconHtml: '<svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><path d="M5.8 3.25H3.25V5.8"/><path d="M10.2 3.25h2.55V5.8"/><path d="M12.75 10.2v2.55H10.2"/><path d="M5.8 12.75H3.25V10.2"/></svg>' })}
   <span class="sep"></span>
-  <button class="tool-btn tool-icon" id="t-tidy" title="Tidy up layout \xB7 T" aria-label="Tidy up layout \xB7 T"><svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><rect x="6.25" y="2.5" width="3.5" height="2.75" rx="0.7"/><rect x="2.75" y="10.75" width="3.5" height="2.75" rx="0.7"/><rect x="9.75" y="10.75" width="3.5" height="2.75" rx="0.7"/><path d="M8 5.25v2.25"/><path d="M4.5 7.5h7"/><path d="M4.5 7.5v3.25"/><path d="M11.5 7.5v3.25"/></svg></button>
+  ${iconButtonMarkup({ id: "t-tidy", title: "Tidy up layout \xB7 T", ariaLabel: "Tidy up layout \xB7 T", svgIconHtml: '<svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><rect x="6.25" y="2.5" width="3.5" height="2.75" rx="0.7"/><rect x="2.75" y="10.75" width="3.5" height="2.75" rx="0.7"/><rect x="9.75" y="10.75" width="3.5" height="2.75" rx="0.7"/><path d="M8 5.25v2.25"/><path d="M4.5 7.5h7"/><path d="M4.5 7.5v3.25"/><path d="M11.5 7.5v3.25"/></svg>' })}
   <span class="sep"></span>
-  <button class="tool-btn tool-icon" id="t-share" title="Share, export, synthesize" aria-label="Share, export, synthesize" aria-haspopup="menu" aria-controls="sharemenu" aria-expanded="false">\u2197</button>
-  <button class="tool-btn tool-icon" id="t-theme" title="Toggle theme" aria-label="Toggle theme">\u25D1</button>
-  <button class="tool-btn tool-icon" id="t-settings" title="Model settings" aria-label="Model settings" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><g transform="translate(12 12) scale(0.92) translate(-12 -12)"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></g></svg></button>
+  ${iconButtonMarkup({ id: "t-share", title: "Share, export, synthesize", ariaLabel: "Share, export, synthesize", ariaHaspopup: "menu", ariaControls: "sharemenu", ariaExpanded: "false", icon: "\u2197" })}
+  ${iconButtonMarkup({ id: "t-theme", title: "Toggle theme", ariaLabel: "Toggle theme", icon: "\u25D1" })}
+  ${iconButtonMarkup({ id: "t-settings", title: "Model settings", ariaLabel: "Model settings", ariaExpanded: "false", svgIconHtml: '<svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><g transform="translate(12 12) scale(0.92) translate(-12 -12)"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></g></svg>' })}
   <span class="sep" id="act-sep" style="display:none"></span>
-  <button class="activity" id="act-canvas" title="Jump to it" aria-label="Jump to active answer"></button>
+  ${iconButtonMarkup({ bare: true, className: "activity", id: "act-canvas", title: "Jump to it", ariaLabel: "Jump to active answer" })}
 </div>
 
 <div id="ask">
@@ -4711,10 +4753,10 @@ var RabbitholeClient = (() => {
 
 <div id="confirm">
   <div class="cf-msg" id="cf-msg"></div>
-  <div class="cf-row"><button id="cf-keep">Keep</button><button class="cf-remove" id="cf-remove">Remove</button></div>
+  <div class="cf-row">${buttonMarkup({ bare: true, id: "cf-keep", label: "Keep" })}${buttonMarkup({ bare: true, className: "cf-remove", id: "cf-remove", label: "Remove" })}</div>
 </div>
 
-<div id="banner"><div class="banner-body"><span class="banner-title" id="banner-title"></span><span id="banner-msg"></span></div><button id="banner-x" title="Dismiss" aria-label="Dismiss banner">\xD7</button></div>
+<div id="banner"><div class="banner-body"><span class="banner-title" id="banner-title"></span><span id="banner-msg"></span></div>${iconButtonMarkup({ bare: true, id: "banner-x", title: "Dismiss", ariaLabel: "Dismiss banner", icon: "\xD7" })}</div>
 <div id="hint"></div>
 `;
 
@@ -4725,7 +4767,7 @@ var RabbitholeClient = (() => {
     getFrozenClientSource: null,
     getDompurifySource: null
   };
-  function escapeHtml(str) {
+  function escapeHtml2(str) {
     return String(str != null ? str : "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
   function serializeForInlineScript(value) {
@@ -4841,7 +4883,7 @@ var RabbitholeClient = (() => {
     var gt = String.fromCharCode(62);
     var scriptOpen = lt + "script" + gt;
     var scriptClose = lt + String.fromCharCode(47) + "script" + gt;
-    return '<!DOCTYPE html>\n<html lang="en" data-theme="light">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>' + escapeHtml(title) + "</title>\n<style>\n" + styleText + "\n</style>\n</head>\n<body>\n" + CANVAS_SHELL + "\n" + scriptOpen + "\n" + dompurifySource + '\n(function(){\n  "use strict";\n  var hydration = ' + serializeForInlineScript(snapshotHydration) + ";\n" + frozenClient + "\n  RabbitholeFrozenClient.startRabbithole(hydration);\n})();\n" + scriptClose + "\n</body>\n</html>";
+    return '<!DOCTYPE html>\n<html lang="en" data-theme="light">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>' + escapeHtml2(title) + "</title>\n<style>\n" + styleText + "\n</style>\n</head>\n<body>\n" + CANVAS_SHELL + "\n" + scriptOpen + "\n" + dompurifySource + '\n(function(){\n  "use strict";\n  var hydration = ' + serializeForInlineScript(snapshotHydration) + ";\n" + frozenClient + "\n  RabbitholeFrozenClient.startRabbithole(hydration);\n})();\n" + scriptClose + "\n</body>\n</html>";
   }
   function exportFilename(title) {
     var slug = String(title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
@@ -8328,8 +8370,8 @@ ${text2}</tr>
      * all browsers support attributes the same, and having too many custom
      * attributes is probably bad.
      */
-    setAttribute(attribute, value) {
-      this.attributes[attribute] = value;
+    setAttribute(attribute2, value) {
+      this.attributes[attribute2] = value;
     }
     hasClass(className) {
       return this.classes.includes(className);
@@ -8354,8 +8396,8 @@ ${text2}</tr>
       this.children = children || [];
       this.setAttribute("href", href);
     }
-    setAttribute(attribute, value) {
-      this.attributes[attribute] = value;
+    setAttribute(attribute2, value) {
+      this.attributes[attribute2] = value;
     }
     hasClass(className) {
       return this.classes.includes(className);
@@ -31315,13 +31357,6 @@ ${text2}</tr>
     };
   }
 
-  // src/core/utils.js
-  var LINE_SEP = new RegExp(String.fromCharCode(8232), "g");
-  var PARA_SEP = new RegExp(String.fromCharCode(8233), "g");
-  function escapeHtml2(str) {
-    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  }
-
   // src/core/markdown-renderer.js
   var MARKDOWN_RENDERER_SENTINEL = "rabbithole-shared-markdown-renderer-v1";
   var SAFE_URL = /^(?:https?:|mailto:|tel:|#|\/|\.\/|\.\.\/|[^:]*$)/i;
@@ -31438,7 +31473,7 @@ ${text2}</tr>
     return -1;
   }
   function mathSourceCode(tex, displayMode) {
-    const code = `<code class="math-source">${escapeHtml2(tex)}</code>`;
+    const code = `<code class="math-source">${escapeHtml(tex)}</code>`;
     return displayMode ? `<p>${code}</p>
 ` : code;
   }
@@ -31465,7 +31500,7 @@ ${text2}</tr>
     return ((_a2 = String(lang || "").match(/\S+/)) == null ? void 0 : _a2[0]) || "";
   }
   function renderPendingVisual(language) {
-    return `<div class="viz viz-pending" data-viz="${escapeHtml2(language)}" aria-label="Drawing visual">Drawing\u2026</div>
+    return `<div class="viz viz-pending" data-viz="${escapeHtml(language)}" aria-label="Drawing visual">Drawing\u2026</div>
 `;
   }
   function findClosingFence(src, marker, from) {
@@ -31484,10 +31519,10 @@ ${text2}</tr>
   function renderPlainCode(source2, language, escaped) {
     const code = source2.replace(TRAILING_NEWLINE, "") + "\n";
     if (!language) {
-      return `<pre><code>${escaped ? code : escapeHtml2(code)}</code></pre>
+      return `<pre><code>${escaped ? code : escapeHtml(code)}</code></pre>
 `;
     }
-    return `<pre><code class="language-${escapeHtml2(language)}">${escaped ? code : escapeHtml2(code)}</code></pre>
+    return `<pre><code class="language-${escapeHtml(language)}">${escaped ? code : escapeHtml(code)}</code></pre>
 `;
   }
   function sanitizeUrl(href, allow) {
@@ -31508,7 +31543,7 @@ ${text2}</tr>
     }
     function renderVisualPlaceholder(language, source2) {
       const encoded = encodeBase64(String(source2 != null ? source2 : ""));
-      return `<div class="viz" data-viz="${escapeHtml2(language)}" data-src="${encoded}"></div>
+      return `<div class="viz" data-viz="${escapeHtml(language)}" data-src="${encoded}"></div>
 `;
     }
     function renderRegisteredFence(language, source2) {
@@ -31523,7 +31558,7 @@ ${text2}</tr>
       if (!language || !core_default.getLanguage(hljsLanguage)) return renderPlainCode(text2, language, escaped);
       const source2 = text2.replace(TRAILING_NEWLINE, "");
       const highlighted = core_default.highlight(source2, { language: hljsLanguage, ignoreIllegals: true }).value + "\n";
-      return `<pre><code class="language-${escapeHtml2(language)} hljs">${highlighted}</code></pre>
+      return `<pre><code class="language-${escapeHtml(language)} hljs">${highlighted}</code></pre>
 `;
     }
     function buildExtensions() {
@@ -31625,16 +31660,16 @@ ${text2}</tr>
           return renderCodeFence(token);
         },
         html({ text: text2 }) {
-          return escapeHtml2(text2);
+          return escapeHtml(text2);
         },
         link({ href, title, tokens }) {
           const text2 = this.parser.parseInline(tokens);
           const resolved = resolveMarkdownUrl(href, { baseUrl: context.baseUrl });
           const safe = sanitizeUrl(resolved, SAFE_URL);
           if (safe === null) return text2;
-          const titleAttr = title ? ` title="${escapeHtml2(title)}"` : "";
+          const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
           const target = safe.startsWith("#") ? "" : ` target="_blank"`;
-          return `<a href="${escapeHtml2(safe)}"${titleAttr}${target} rel="noopener noreferrer">${text2}</a>`;
+          return `<a href="${escapeHtml(safe)}"${titleAttr}${target} rel="noopener noreferrer">${text2}</a>`;
         },
         image({ href, title, text: text2 }) {
           const resolved = resolveMarkdownUrl(href, {
@@ -31644,9 +31679,9 @@ ${text2}</tr>
             resolveAssetUrl: context.resolveAssetUrl
           });
           const safe = sanitizeUrl(resolved, SAFE_IMG);
-          if (safe === null) return escapeHtml2(text2 || "");
-          const titleAttr = title ? ` title="${escapeHtml2(title)}"` : "";
-          return `<img src="${escapeHtml2(safe)}" alt="${escapeHtml2(text2 || "")}"${titleAttr}>`;
+          if (safe === null) return escapeHtml(text2 || "");
+          const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
+          return `<img src="${escapeHtml(safe)}" alt="${escapeHtml(text2 || "")}"${titleAttr}>`;
         }
       };
     }

@@ -118,6 +118,8 @@ Scenario references use the Part VI group and shortened ledger wording. `—` me
 |---|---|---|---|
 | calm landing, three-path composer, path copy, dismiss-without-create | C2 | Protects first-run navigation and empty state. | — |
 | blank-state centering and composer initial focus | C2 | Protects visible placement and initial keyboard focus. | Chrome: keyboard-only completion (small opening/closing subset) |
+| toolbar Button kit conformance | C2 | Requires every reader/canvas toolbar button to declare `type="button"` and expose a non-empty accessible name. | Chrome: toolbar accessibility |
+| reader/canvas toolbar keyboard activation and focus-visible rings | C2 | Exercises Enter/Space activation across both modes and requires the constitutional keyboard-only ring on both toolbar families. | Chrome: keyboard-only completion; focus visibility |
 | warm re-entry, hash precedence, rail delete fallback | C2 | Protects saved-hole navigation and recovery. | — |
 | first ask key validation and streamed root creation | C2 | Protects BYOK first-run streaming behavior. | Generation: 401/403 (pre-stream validation only); title never arrives (non-sentinel root title path only) |
 | rail content/geometry exact values | C4 | Pins the Phase 2 semantic rail width, panel padding, and symmetric row-padding geometry. | — |
@@ -221,6 +223,7 @@ Scenario references use the Part VI group and shortened ledger wording. `—` me
 | imported and show-fence injection on live/frozen paths | C2 | Protects the user-visible security boundary for imported markdown and hydratable show content, including script, iframe, handler, JavaScript-URL, and SVG vectors. | Rendering: script/iframe/handler injection via fences and imported payloads, both paths |
 | KaTeX errors and trusted structural markup | C2 | Requires invalid math to degrade safely while valid KaTeX MathML, semantics, annotations, and fraction structure survive both render paths. | Rendering: KaTeX parse errors; trusted MathML sanitizer parity |
 | frozen asset-bearing document with all requests blocked | C1 | Frozen snapshots are a self-contained external artifact and must render their document and embedded assets without attempting network access. | Rendering: frozen viewing fully offline, zero fetches |
+| frozen toolbar render and Done/activity suppression | C2 | Requires shared toolbar markup to survive snapshot assembly while preserving frozen-only control suppression. | Rendering: frozen viewing control parity |
 | current provider-key map canonical cleanup (`stage15-security-migrations-verify.mjs:150-153`) | C1 | Preserves current settings and key-map data while removing the retired single-key slot. | Data: preference/credential storage through every migration |
 | single-key-era credential adoption (`stage15-security-migrations-verify.mjs:156-159`) | C1 | Requires lossless adoption into the provider-key map and retirement of the legacy slot. | Data: preference/credential storage through every migration |
 | pre-popover custom/local canonical migration (`stage15-security-migrations-verify.mjs:162-165`) | C1 | Preserves local settings and session-only choice while adopting the stray OpenRouter-era credential without assigning it to Local. | Data: preference/credential storage through every migration |
@@ -269,11 +272,11 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 | Category | Count |
 |---|---:|
 | C1 compatibility contract | 41 |
-| C2 behavioral product contract | 96 |
+| C2 behavioral product contract | 99 |
 | C3 implementation snapshot | 10 |
 | C4 known defect | 5 |
 | C5 design target | 0 |
-| **Total** | **152** |
+| **Total** | **155** |
 
 ## Known-defect fossils
 

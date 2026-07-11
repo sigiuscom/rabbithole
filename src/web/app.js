@@ -9,6 +9,7 @@ import { DirectRabbitholeHost, createHoleFromMarkdown, createPendingHoleFromQues
 import { startRabbithole } from "../ui/entry.js";
 import { activateFocusTrap } from "../ui/focus-trap.js";
 import { fieldMarkup, wireField } from "../ui/primitives/field.js";
+import { buttonMarkup } from "../ui/primitives/button.js";
 import { setSnapshotHooks, buildSnapshotHydration, buildSnapshotHtml } from "../ui/snapshot.js";
 import { openUrlToStoredHole } from "./ingest/url.js";
 import { downloadRabbitholeExport, importRabbitholeFile, rabbitholeFilename } from "./portable.js";
@@ -107,11 +108,7 @@ function renderShell() {
       </div>
     </div>
     <div id="blank-start" class="blank-start" hidden>
-      <button id="blank-start-new" class="blank-start-new" type="button">
-        <svg width="14" height="14" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none" aria-hidden="true"><path d="M8 3.25v9.5"/><path d="M3.25 8h9.5"/></svg>
-        New Rabbithole
-        <kbd>N</kbd>
-      </button>
+      ${buttonMarkup({ bare: true, id: "blank-start-new", className: "blank-start-new", label: "New Rabbithole", kbdHint: "N", svgIconHtml: '<svg width="14" height="14" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none" aria-hidden="true"><path d="M8 3.25v9.5"/><path d="M3.25 8h9.5"/></svg>' })}
       <p class="blank-start-sub">or drop a PDF or Markdown file anywhere</p>
     </div>
     <div id="web-toast" class="web-toast" aria-live="polite"></div>`;

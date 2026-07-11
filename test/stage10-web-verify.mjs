@@ -52,6 +52,14 @@ async function verifyLandingAndComposer() {
   assert.equal(await page.locator("body").evaluate((body) => body.classList.contains("rail-open")), false, "legacy sidebar state should not override the calm default");
   assert.equal(await page.locator(".web-home").count(), 0, "form-based home page must be gone");
   assert.equal(await page.locator("#toolbar .toolbar-brand").count(), 1, "browser toolbar should carry the Rabbithole mark");
+  const toolbarConformance = await page.locator("#reader-top button, #toolbar button").evaluateAll((buttons) => buttons.map((button) => ({
+    id: button.id,
+    type: button.getAttribute("type"),
+    name: button.getAttribute("aria-label") || button.textContent.trim(),
+  })));
+  assert(toolbarConformance.length > 0, "reader and canvas toolbars should render buttons");
+  assert(toolbarConformance.every(({ type }) => type === "button"), `every toolbar button should declare type=button (${JSON.stringify(toolbarConformance)})`);
+  assert(toolbarConformance.every(({ name }) => name.length > 0), `every toolbar button should have an accessible name (${JSON.stringify(toolbarConformance)})`);
   assert.equal(await page.locator(".composer-path").count(), 3, "new Rabbithole should offer exactly three starting paths");
   assert.equal(await page.locator("#composer-title").innerText(), "Enter a Rabbithole");
   assert.equal(await page.locator(".composer-title-mark svg").count(), 1, "composer title should include the rabbit mark");
@@ -692,6 +700,26 @@ async function verifyCanvasBranching() {
   await page.waitForSelector(".node .katex");
   await page.waitForSelector(".node .hljs");
   await page.waitForSelector(".node .viz-show");
+
+  await page.click("#t-reader");
+  await page.waitForSelector("body:not(.mode-canvas)");
+  await page.focus("#r-textup");
+  await page.keyboard.press("Tab");
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "r-canvas");
+  const readerFocusRing = await page.evaluate(() => getComputedStyle(document.getElementById("r-canvas")).outlineStyle);
+  assert.notEqual(readerFocusRing, "none", "keyboard focus should show the reader-toolbar focus-visible ring");
+  await page.keyboard.press("Enter");
+  await page.waitForSelector("body.mode-canvas");
+  await page.focus("#t-new");
+  await page.keyboard.press("Tab");
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "t-reader");
+  const canvasFocusRing = await page.evaluate(() => getComputedStyle(document.getElementById("t-reader")).outlineStyle);
+  assert.notEqual(canvasFocusRing, "none", "keyboard focus should show the canvas-toolbar focus-visible ring");
+  await page.keyboard.press("Space");
+  await page.waitForSelector("body:not(.mode-canvas)");
+  await page.focus("#r-canvas");
+  await page.keyboard.press("Enter");
+  await page.waitForSelector("body.mode-canvas");
 
   await page.click("#t-share");
   await page.waitForSelector("#sharemenu.visible");
