@@ -1,8 +1,7 @@
-import { CANVAS_SHELL } from "../core/html/shell.js";
 import { extractAssetRefsFromMarkdown } from "../core/assets.js";
 import { binaryToBase64 } from "../core/portable-projection.js";
 import { createSnapshotProjection } from "../core/snapshot-projection.js";
-import { serializeForInlineScript } from "../core/utils.js";
+import { buildSnapshotHtml as assembleSnapshotHtml } from "../core/snapshot-html.js";
 import {
   currentNodeId,
   mode,
@@ -21,14 +20,6 @@ var snapshotHooks = {
 
 export function setSnapshotHooks(hooks) {
   snapshotHooks = Object.assign({}, snapshotHooks, hooks || {});
-}
-
-function escapeHtml(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 function snapshotViewState() {
@@ -102,33 +93,13 @@ export function buildSnapshotHtml(snapshotProjection) {
     ? snapshotHooks.getFrozenClientSource()
     : window.__RABBITHOLE_FROZEN_CLIENT__;
   if (!frozenClient) throw new Error("Frozen client bundle is unavailable");
-  var lt = String.fromCharCode(60);
-  var gt = String.fromCharCode(62);
-  var scriptOpen = lt + "script" + gt;
-  var scriptClose = lt + String.fromCharCode(47) + "script" + gt;
-  var payloadOpen = lt + 'script type="application/vnd.rabbithole+json" id="rabbithole-portable"' + gt;
-  return "<!DOCTYPE html>\n" +
-    '<html lang="en" data-theme="light">\n' +
-    "<head>\n" +
-    '<meta charset="utf-8">\n' +
-    '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
-    "<title>" + escapeHtml(title) + "</title>\n" +
-    "<style>\n" + styleText + "\n</style>\n" +
-    "</head>\n" +
-    "<body>\n" +
-    CANVAS_SHELL +
-    "\n" + payloadOpen + serializeForInlineScript(snapshotProjection) + scriptClose +
-    "\n" + scriptOpen + "\n" +
-    dompurifySource +
-    "\n(function(){\n" +
-    '  "use strict";\n' +
-    frozenClient +
-    "\n  var payload = document.getElementById(\"rabbithole-portable\");\n" +
-    "  RabbitholeFrozenClient.startPortableSnapshot(JSON.parse(payload.textContent));\n" +
-    "})();\n" +
-    scriptClose + "\n" +
-    "</body>\n" +
-    "</html>";
+  return assembleSnapshotHtml({
+    title,
+    stylesheetText: styleText,
+    dompurifySource,
+    frozenClientSource: frozenClient,
+    snapshotProjection,
+  });
 }
 
 function exportFilename(title) {

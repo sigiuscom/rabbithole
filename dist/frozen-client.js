@@ -5180,6 +5180,97 @@ var RabbitholeFrozenClient = (() => {
     }
   }
 
+  // src/core/schema.js
+  var CURRENT_SCHEMA_VERSION = 1;
+  function validatePersistedHole(hole) {
+    if (!hole || typeof hole !== "object" || Array.isArray(hole)) throw new Error("Persisted Rabbithole must be an object");
+    if (hole.schema_version !== CURRENT_SCHEMA_VERSION) throw new Error(`Persisted Rabbithole must have schema_version ${CURRENT_SCHEMA_VERSION}`);
+    if (typeof hole.hole_id !== "string" || !hole.hole_id) throw new Error("Persisted Rabbithole hole_id must be a non-empty string");
+    if (typeof hole.title !== "string") throw new Error("Persisted Rabbithole title must be a string");
+    if (typeof hole.root_id !== "string" || !hole.root_id) throw new Error("Persisted Rabbithole root_id must be a non-empty string");
+    if (!Array.isArray(hole.nodes)) throw new Error("Persisted Rabbithole nodes must be an array");
+    for (const node of hole.nodes) validatePersistedNode(node);
+    return true;
+  }
+  function validatePersistedNode(node) {
+    if (!node || typeof node !== "object" || Array.isArray(node)) throw new Error("Persisted node must be an object");
+    if (typeof node.id !== "string" || !node.id) throw new Error("Persisted node id must be a non-empty string");
+    if (node.parent_id !== null && typeof node.parent_id !== "string") throw new Error(`Persisted node ${node.id} parent_id must be string or null`);
+    if (typeof node.title !== "string") throw new Error(`Persisted node ${node.id} title must be a string`);
+    if (typeof node.markdown !== "string") throw new Error(`Persisted node ${node.id} markdown must be a string`);
+    if (node.base_url !== null && typeof node.base_url !== "string") throw new Error(`Persisted node ${node.id} base_url must be string or null`);
+    if (node.base_url_source !== null && !["explicit", "frontmatter", "inherited"].includes(node.base_url_source)) {
+      throw new Error(`Persisted node ${node.id} base_url_source is invalid`);
+    }
+    if (!node.position || typeof node.position !== "object") throw new Error(`Persisted node ${node.id} position must be an object`);
+    if (node.size !== null && typeof node.size !== "object") throw new Error(`Persisted node ${node.id} size must be object or null`);
+    if (node.status !== "pending" && node.status !== "answered") throw new Error(`Persisted node ${node.id} status is invalid`);
+    return true;
+  }
+
+  // src/core/portable-projection.js
+  var RABBITHOLE_FILE_FORMAT = "rabbithole";
+  var RABBITHOLE_FILE_FORMAT_VERSION = 1;
+  function createPortableProjection(hole, assets) {
+    validatePersistedHole(hole);
+    validatePortableAssets(assets);
+    return {
+      format: RABBITHOLE_FILE_FORMAT,
+      format_version: RABBITHOLE_FILE_FORMAT_VERSION,
+      hole,
+      assets
+    };
+  }
+  function validatePortableAssets(assets) {
+    if (!assets || typeof assets !== "object" || Array.isArray(assets)) {
+      throw new Error("Import failed: file assets must be an object.");
+    }
+    for (const [name, encoded] of Object.entries(assets)) {
+      const safeName = validateAssetName(name);
+      if (typeof encoded !== "string") throw new Error(`Import failed: asset ${safeName} must be base64.`);
+      validateBase64(encoded);
+    }
+  }
+  function validateBase64(value) {
+    const base64 = value.replace(/\s+/g, "");
+    if (base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64)) {
+      throw new Error("Import failed: asset data is not valid base64.");
+    }
+    return base64;
+  }
+  async function binaryToBase64(binary) {
+    const bytes = binary instanceof Uint8Array ? binary : new Uint8Array(await binary.arrayBuffer());
+    let out = "";
+    for (let i2 = 0; i2 < bytes.length; i2 += 32768) {
+      out += String.fromCharCode(...bytes.subarray(i2, i2 + 32768));
+    }
+    return btoa(out);
+  }
+
+  // src/core/snapshot-projection.js
+  function createSnapshotProjection(hole, viewState, assets) {
+    return createPortableProjection({ ...hole, view_state: viewState }, assets);
+  }
+  function snapshotProjectionToFrozenHydration(projection) {
+    const hole = projection.hole;
+    const assetData2 = {};
+    for (const [name, encoded] of Object.entries(projection.assets)) {
+      assetData2[name] = `data:${getAssetContentType(name)};base64,${encoded}`;
+    }
+    return {
+      session_id: `snapshot-${hole.hole_id}`,
+      hole_id: hole.hole_id,
+      title: hole.title,
+      root_id: hole.root_id,
+      last_event_id: 0,
+      agent_attached: false,
+      view_state: hole.view_state,
+      frozen: true,
+      asset_data: assetData2,
+      nodes: hole.nodes
+    };
+  }
+
   // src/core/html/shell.js
   var CANVAS_SHELL = `
 <div id="reader">
@@ -5276,95 +5367,14 @@ var RabbitholeFrozenClient = (() => {
 <div id="hint" data-notice-message></div>
 `;
 
-  // src/core/schema.js
-  var CURRENT_SCHEMA_VERSION = 1;
-  function validatePersistedHole(hole) {
-    if (!hole || typeof hole !== "object" || Array.isArray(hole)) throw new Error("Persisted Rabbithole must be an object");
-    if (hole.schema_version !== CURRENT_SCHEMA_VERSION) throw new Error(`Persisted Rabbithole must have schema_version ${CURRENT_SCHEMA_VERSION}`);
-    if (typeof hole.hole_id !== "string" || !hole.hole_id) throw new Error("Persisted Rabbithole hole_id must be a non-empty string");
-    if (typeof hole.title !== "string") throw new Error("Persisted Rabbithole title must be a string");
-    if (typeof hole.root_id !== "string" || !hole.root_id) throw new Error("Persisted Rabbithole root_id must be a non-empty string");
-    if (!Array.isArray(hole.nodes)) throw new Error("Persisted Rabbithole nodes must be an array");
-    for (const node of hole.nodes) validatePersistedNode(node);
-    return true;
-  }
-  function validatePersistedNode(node) {
-    if (!node || typeof node !== "object" || Array.isArray(node)) throw new Error("Persisted node must be an object");
-    if (typeof node.id !== "string" || !node.id) throw new Error("Persisted node id must be a non-empty string");
-    if (node.parent_id !== null && typeof node.parent_id !== "string") throw new Error(`Persisted node ${node.id} parent_id must be string or null`);
-    if (typeof node.title !== "string") throw new Error(`Persisted node ${node.id} title must be a string`);
-    if (typeof node.markdown !== "string") throw new Error(`Persisted node ${node.id} markdown must be a string`);
-    if (node.base_url !== null && typeof node.base_url !== "string") throw new Error(`Persisted node ${node.id} base_url must be string or null`);
-    if (node.base_url_source !== null && !["explicit", "frontmatter", "inherited"].includes(node.base_url_source)) {
-      throw new Error(`Persisted node ${node.id} base_url_source is invalid`);
-    }
-    if (!node.position || typeof node.position !== "object") throw new Error(`Persisted node ${node.id} position must be an object`);
-    if (node.size !== null && typeof node.size !== "object") throw new Error(`Persisted node ${node.id} size must be object or null`);
-    if (node.status !== "pending" && node.status !== "answered") throw new Error(`Persisted node ${node.id} status is invalid`);
-    return true;
-  }
-
-  // src/core/portable-projection.js
-  var RABBITHOLE_FILE_FORMAT = "rabbithole";
-  var RABBITHOLE_FILE_FORMAT_VERSION = 1;
-  function createPortableProjection(hole, assets) {
-    validatePersistedHole(hole);
-    validatePortableAssets(assets);
-    return {
-      format: RABBITHOLE_FILE_FORMAT,
-      format_version: RABBITHOLE_FILE_FORMAT_VERSION,
-      hole,
-      assets
-    };
-  }
-  function validatePortableAssets(assets) {
-    if (!assets || typeof assets !== "object" || Array.isArray(assets)) {
-      throw new Error("Import failed: file assets must be an object.");
-    }
-    for (const [name, encoded] of Object.entries(assets)) {
-      const safeName = validateAssetName(name);
-      if (typeof encoded !== "string") throw new Error(`Import failed: asset ${safeName} must be base64.`);
-      validateBase64(encoded);
-    }
-  }
-  function validateBase64(value) {
-    const base64 = value.replace(/\s+/g, "");
-    if (base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64)) {
-      throw new Error("Import failed: asset data is not valid base64.");
-    }
-    return base64;
-  }
-  async function binaryToBase64(binary) {
-    const bytes = binary instanceof Uint8Array ? binary : new Uint8Array(await binary.arrayBuffer());
-    let out = "";
-    for (let i2 = 0; i2 < bytes.length; i2 += 32768) {
-      out += String.fromCharCode(...bytes.subarray(i2, i2 + 32768));
-    }
-    return btoa(out);
-  }
-
-  // src/core/snapshot-projection.js
-  function createSnapshotProjection(hole, viewState, assets) {
-    return createPortableProjection({ ...hole, view_state: viewState }, assets);
-  }
-  function snapshotProjectionToFrozenHydration(projection) {
-    const hole = projection.hole;
-    const assetData2 = {};
-    for (const [name, encoded] of Object.entries(projection.assets)) {
-      assetData2[name] = `data:${getAssetContentType(name)};base64,${encoded}`;
-    }
-    return {
-      session_id: `snapshot-${hole.hole_id}`,
-      hole_id: hole.hole_id,
-      title: hole.title,
-      root_id: hole.root_id,
-      last_event_id: 0,
-      agent_attached: false,
-      view_state: hole.view_state,
-      frozen: true,
-      asset_data: assetData2,
-      nodes: hole.nodes
-    };
+  // src/core/snapshot-html.js
+  function buildSnapshotHtml({ title, stylesheetText, dompurifySource, frozenClientSource, snapshotProjection }) {
+    var lt = String.fromCharCode(60);
+    var gt = String.fromCharCode(62);
+    var scriptOpen = lt + "script" + gt;
+    var scriptClose = lt + String.fromCharCode(47) + "script" + gt;
+    var payloadOpen = lt + 'script type="application/vnd.rabbithole+json" id="rabbithole-portable"' + gt;
+    return '<!DOCTYPE html>\n<html lang="en" data-theme="light">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>' + escapeHtml(title) + "</title>\n<style>\n" + stylesheetText + "\n</style>\n</head>\n<body>\n" + CANVAS_SHELL + "\n" + payloadOpen + serializeForInlineScript(snapshotProjection) + scriptClose + "\n" + scriptOpen + "\n" + dompurifySource + '\n(function(){\n  "use strict";\n' + frozenClientSource + '\n  var payload = document.getElementById("rabbithole-portable");\n  RabbitholeFrozenClient.startPortableSnapshot(JSON.parse(payload.textContent));\n})();\n' + scriptClose + "\n</body>\n</html>";
   }
 
   // src/ui/snapshot.js
@@ -5375,9 +5385,6 @@ var RabbitholeFrozenClient = (() => {
     getDompurifySource: null,
     getStylesheetText: null
   };
-  function escapeHtml2(str) {
-    return String(str != null ? str : "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  }
   function snapshotViewState() {
     var cur = nodes[currentNodeId];
     var scroll = mode === "reader" ? readerMain.scrollTop : cur && cur._scrollTop || 0;
@@ -5435,19 +5442,20 @@ var RabbitholeFrozenClient = (() => {
     var hole = await snapshotHooks.getSnapshotHole();
     return createSnapshotProjection(hole, viewState, await buildAssetData(hole.nodes));
   }
-  function buildSnapshotHtml(snapshotProjection) {
+  function buildSnapshotHtml2(snapshotProjection) {
     var title = snapshotProjection && snapshotProjection.hole && snapshotProjection.hole.title || "Rabbithole";
     var styleText = typeof snapshotHooks.getStylesheetText === "function" ? snapshotHooks.getStylesheetText() : "";
     if (!styleText) throw new Error("Frozen stylesheet is unavailable");
     var dompurifySource = extractDompurifySource();
     var frozenClient = typeof snapshotHooks.getFrozenClientSource === "function" ? snapshotHooks.getFrozenClientSource() : window.__RABBITHOLE_FROZEN_CLIENT__;
     if (!frozenClient) throw new Error("Frozen client bundle is unavailable");
-    var lt = String.fromCharCode(60);
-    var gt = String.fromCharCode(62);
-    var scriptOpen = lt + "script" + gt;
-    var scriptClose = lt + String.fromCharCode(47) + "script" + gt;
-    var payloadOpen = lt + 'script type="application/vnd.rabbithole+json" id="rabbithole-portable"' + gt;
-    return '<!DOCTYPE html>\n<html lang="en" data-theme="light">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>' + escapeHtml2(title) + "</title>\n<style>\n" + styleText + "\n</style>\n</head>\n<body>\n" + CANVAS_SHELL + "\n" + payloadOpen + serializeForInlineScript(snapshotProjection) + scriptClose + "\n" + scriptOpen + "\n" + dompurifySource + '\n(function(){\n  "use strict";\n' + frozenClient + '\n  var payload = document.getElementById("rabbithole-portable");\n  RabbitholeFrozenClient.startPortableSnapshot(JSON.parse(payload.textContent));\n})();\n' + scriptClose + "\n</body>\n</html>";
+    return buildSnapshotHtml({
+      title,
+      stylesheetText: styleText,
+      dompurifySource,
+      frozenClientSource: frozenClient,
+      snapshotProjection
+    });
   }
   function exportFilename(title) {
     var slug = String(title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
@@ -5455,7 +5463,7 @@ var RabbitholeFrozenClient = (() => {
   }
   async function downloadSnapshot() {
     var snapshotProjection = await buildSnapshotProjection();
-    var html2 = buildSnapshotHtml(snapshotProjection);
+    var html2 = buildSnapshotHtml2(snapshotProjection);
     var blob = new Blob([html2], { type: "text/html;charset=utf-8" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");

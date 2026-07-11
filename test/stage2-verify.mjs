@@ -308,7 +308,7 @@ async function runClientMountSimulation() {
 }
 
 async function assertPageAssembly() {
-  const html = buildCanvasHtml({ title: "Stage 2", root_id: "root", nodes: [], frozen: true });
+  const html = buildCanvasHtml({ title: "Stage 2", root_id: "root", nodes: [] });
   const purify = getDompurifyScript();
   assert.equal(count(html, purify), 1, "DOMPurify should be inlined exactly once");
   assert.equal(count(html, "<script>"), 1, "page should keep one inline script for the node --check gate");

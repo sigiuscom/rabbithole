@@ -6,6 +6,10 @@ import { log, error as logError } from "../logger.js";
 import { addAssetsToHole, defaultFsStore, getAssetContentType, resolveAsset } from "../fs-store.js";
 import { maybeUpgradeBaseUrlFromFrontmatter, normalizeBaseUrl } from "../../core/base-url.js";
 import { extractAssetRefsFromMarkdown } from "../../core/assets.js";
+import { createSnapshotProjection } from "../../core/snapshot-projection.js";
+import { buildSnapshotHtml } from "../../core/snapshot-html.js";
+import { CANVAS_STYLES } from "../../core/html/styles.js";
+import { getDompurifyScript, getFrozenClientBundle, getKatexCss } from "../html/built-assets.js";
 import { createHoleState, holeStateToHole, holeStateToHydrationNodes, reduceHoleEvent } from "../../core/reducer.js";
 import { toPersistedHole } from "../../core/schema.js";
 import { lineageTitlesFromMap } from "../../core/model.js";
@@ -411,27 +415,33 @@ export class RabbitHoleSession {
     };
   }
 
-  async buildExportHydration() {
-    const hydration = { ...this.buildHydration(), frozen: true, asset_data: {} };
-    const dataUriCache = new Map();
-    for (const name of [...this.assetNames].sort()) {
-      hydration.asset_data[name] = await this.assetDataUri(name, dataUriCache);
+  async buildSnapshotProjection() {
+    const hole = toPersistedHole(this.toHole());
+    const referencedNames = new Set();
+    for (const node of hole.nodes) {
+      for (const name of extractAssetRefsFromMarkdown(node.markdown)) referencedNames.add(name);
     }
-    return hydration;
+    const assets = {};
+    for (const name of [...referencedNames].sort()) {
+      assets[name] = "";
+      if (!this.assetNames.has(name)) continue;
+      try {
+        const filePath = await resolveAsset(this.holeId, name);
+        if (filePath) assets[name] = (await fs.readFile(filePath)).toString("base64");
+      } catch {}
+    }
+    return createSnapshotProjection(hole, this.viewState, assets);
   }
 
-  async assetDataUri(name, dataUriCache) {
-    if (dataUriCache.has(name)) return dataUriCache.get(name);
-    let dataUri = "data:,";
-    try {
-      const filePath = await resolveAsset(this.holeId, name);
-      if (filePath) {
-        const bytes = await fs.readFile(filePath);
-        dataUri = `data:${getAssetContentType(name)};base64,${bytes.toString("base64")}`;
-      }
-    } catch {}
-    dataUriCache.set(name, dataUri);
-    return dataUri;
+  async buildExportHtml() {
+    const snapshotProjection = await this.buildSnapshotProjection();
+    return buildSnapshotHtml({
+      title: snapshotProjection.hole.title || "Rabbithole",
+      stylesheetText: `${CANVAS_STYLES}\n${getKatexCss()}`,
+      dompurifySource: getDompurifyScript(),
+      frozenClientSource: getFrozenClientBundle(),
+      snapshotProjection,
+    });
   }
 
   toHole() {
@@ -784,18 +794,15 @@ export class RabbitHoleSession {
       return;
     }
 
-    // A read-only single-file snapshot of the whole hole: the same page with
-    // Compatibility shim for saved links/tests. The in-app Download snapshot flow
-    // generates the same frozen page in the browser; this route only packages the
-    // current server state with data-URI assets and the frozen client bundle.
+    // Compatibility route for saved links: emit the canonical portable snapshot.
     if (req.method === "GET" && url.pathname === "/export") {
-      const hydration = await this.buildExportHydration();
+      const html = await this.buildExportHtml();
       res.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
         "Content-Disposition": `attachment; filename="${exportFilename(this.title)}"`,
         "Cache-Control": "no-store, no-cache, must-revalidate",
       });
-      res.end(this.renderPage(hydration));
+      res.end(html);
       return;
     }
 

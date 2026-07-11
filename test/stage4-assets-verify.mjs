@@ -4,6 +4,8 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { renderMarkdownToHtml } from "../src/core/markdown.js";
+import { extractSnapshotPayload, SNAPSHOT_PAYLOAD_OPEN } from "../src/core/portable-import.js";
+import { validatePortableProjection } from "../src/core/portable-projection.js";
 import { buildCanvasHtml } from "../src/node/html/canvas.js";
 import { createSession, closeAllSessions } from "../src/node/sessions.js";
 import {
@@ -150,7 +152,10 @@ function runToolValidationFixture(source) {
 }
 
 async function runSessionFixtures(source, source2) {
-  await addAssetsToHole("session-hole", [{ name: "diagram-1.png", file_path: source }]);
+  await addAssetsToHole("session-hole", [
+    { name: "diagram-1.png", file_path: source },
+    { name: "unused.png", file_path: source2 },
+  ]);
   const assetNames = new Set(await listAssets("session-hole"));
   const markdown = "Root asset ![fig](asset:diagram-1.png)";
   const root = {
@@ -208,7 +213,12 @@ async function runSessionFixtures(source, source2) {
     const exported = await fetch(`${session.url}/export`);
     assert.equal(exported.status, 200);
     const exportHtml = await exported.text();
-    assertIncludes(exportHtml, `data:image/png;base64,${PNG_BYTES.toString("base64")}`);
+    const projection = validatePortableProjection(JSON.parse(extractSnapshotPayload(exportHtml)));
+    assert.equal(exportHtml.split(SNAPSHOT_PAYLOAD_OPEN).length - 1, 1, "export should contain exactly one inert payload");
+    assertIncludes(exportHtml, "RabbitholeFrozenClient.startPortableSnapshot", "export should use the canonical portable bootstrap");
+    assert.deepEqual(Object.keys(projection.assets), ["diagram-1.png"], "export should include referenced assets only");
+    assert.equal(projection.assets["diagram-1.png"], PNG_BYTES.toString("base64"));
+    assert(!exportHtml.includes(PNG_BYTES_2.toString("base64")), "export should omit unreferenced session assets");
     assert(!exportHtml.includes("/assets/"), "export should not keep live asset URLs");
 
     const ask = session.handleBranchRequest({
@@ -240,7 +250,7 @@ async function runSessionFixtures(source, source2) {
     await closeAllSessions("stage4_test_complete");
   }
 
-  console.log("ok assets: route serving, route rejection, export inlining, SSE progress");
+  console.log("ok assets: route serving, route rejection, canonical referenced-only export, SSE progress");
 }
 
 const { source, source2 } = await runStorageFixtures();

@@ -3,8 +3,13 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createMarkdownRenderer, encodeBase64Utf8 } from "../src/core/markdown.js";
+import { extractSnapshotPayload, SNAPSHOT_PAYLOAD_OPEN } from "../src/core/portable-import.js";
+import { snapshotProjectionToFrozenHydration } from "../src/core/snapshot-projection.js";
+import { validatePortableProjection } from "../src/core/portable-projection.js";
 import { openRabbithole, answerBranch } from "../src/node/index.js";
 import { closeAllSessions, getSession } from "../src/node/sessions.js";
+import { FsStore } from "../src/node/fs-store.js";
+import { importSnapshotFile } from "../src/web/portable.js";
 
 process.env.RABBITHOLE_NO_BROWSER = "1";
 process.env.RABBITHOLE_MAX_BLOCK_MS = "50";
@@ -248,10 +253,13 @@ async function runMarkdownWireFixture() {
   const exported = await fetch(`${session.url}/export`);
   assert.equal(exported.status, 200);
   const exportHtml = await exported.text();
-  const exportHydration = parseHydration(exportHtml);
-  assertNoContentHtml(exportHydration, "export hydration");
-  assert(exportHydration.frozen, "export hydration should be frozen");
-  assertIncludes(exportHtml, `data:image/png;base64,${PNG_BYTES.toString("base64")}`);
+  const projection = validatePortableProjection(JSON.parse(extractSnapshotPayload(exportHtml)));
+  const exportHydration = snapshotProjectionToFrozenHydration(projection);
+  assert.equal(exportHtml.split(SNAPSHOT_PAYLOAD_OPEN).length - 1, 1, "export should contain exactly one inert payload");
+  assertNoContentHtml(projection, "export projection");
+  assertIncludes(exportHtml, "RabbitholeFrozenClient.startPortableSnapshot", "export should use the portable snapshot bootstrap");
+  assert.deepEqual(Object.keys(projection.assets), ["diagram-1.png"], "export should include referenced assets only");
+  assert.equal(projection.assets["diagram-1.png"], PNG_BYTES.toString("base64"));
   assert(!exportHtml.includes("new EventSource"), "export should not include EventSource wiring");
   assert(!exportHtml.includes("/sse"), "export should not include SSE routes");
   assert(!exportHtml.includes("/assets/"), "export should not include live asset routes");
@@ -266,9 +274,15 @@ async function runMarkdownWireFixture() {
   assertIncludes(frozenRootHtml, 'class="viz"', "frozen markdown should render show placeholders");
   assertIncludes(frozenRootHtml, `src="data:image/png;base64,${PNG_BYTES.toString("base64")}"`, "frozen markdown should render data URI images");
 
+  const importStore = new FsStore();
+  const imported = await importSnapshotFile(importStore, exportHtml);
+  assert.equal(imported.asset_count, 1, "web import should restore the MCP snapshot asset");
+  const importedHole = await importStore.loadHole(imported.hole_id);
+  assert.equal(importedHole.nodes.find((node) => node.id === nodeId).markdown, answered.markdown, "web import should restore the MCP-authored branch");
+
   session.close("stage8_done");
   assertSessionClosedShape(await answerBranch({ sessionId: session.id, requestId, content: "late" }), session.id);
-  console.log("ok stage8: markdown-only hydration/SSE, tool shapes, streaming, and frozen export");
+  console.log("ok stage8: markdown-only hydration/SSE, tool shapes, streaming, canonical export, and web-import round trip");
 }
 
 try {

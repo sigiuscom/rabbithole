@@ -14,15 +14,8 @@ import { CANVAS_STYLES } from "../../core/html/styles.js";
 export function buildCanvasHtml(hydration) {
   const title = hydration?.title || "Rabbithole";
   const hydrationJson = serializeForInlineScript(hydration);
-  const frozen = !!hydration?.frozen;
-  const clientBundle = frozen ? getFrozenClientBundle() : getClientBundle();
-  const clientGlobal = frozen ? "RabbitholeFrozenClient" : "RabbitholeClient";
-  const liveSnapshotSource = frozen
-    ? ""
-    : `  window.__RABBITHOLE_FROZEN_CLIENT__ = ${serializeForInlineScript(getFrozenClientBundle())};\n`;
-  const liveSnapshotHoleHook = frozen
-    ? ""
-    : `      getSnapshotHole: async function(){
+  const liveSnapshotSource = `  window.__RABBITHOLE_FROZEN_CLIENT__ = ${serializeForInlineScript(getFrozenClientBundle())};\n`;
+  const liveSnapshotHoleHook = `      getSnapshotHole: async function(){
         var response = await fetch("/snapshot-hole", { cache: "no-store" });
         if (!response.ok) throw new Error("Snapshot document is unavailable");
         return response.json();
@@ -46,8 +39,8 @@ ${getDompurifyScript()}
 (function(){
 	  "use strict";
 	  var hydration = ${hydrationJson};
-	${liveSnapshotSource}${clientBundle}
-	  ${clientGlobal}.startRabbithole(hydration, {
+	${liveSnapshotSource}${getClientBundle()}
+	  RabbitholeClient.startRabbithole(hydration, {
 	    snapshotHooks: {
 	${liveSnapshotHoleHook}      getFrozenClientSource: function(){ return window.__RABBITHOLE_FROZEN_CLIENT__ || ""; },
 	      getStylesheetText: function(){
