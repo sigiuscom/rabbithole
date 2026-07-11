@@ -254,7 +254,8 @@ async function assertPreferenceState(page, fixture) {
   if (fixture.expectedSettings.session_only === false && fixture.expectedKeys?.openrouter) {
     assert.equal(await page.inputValue("#api-key"), SECRET, `${fixture.name}: remembered key remains usable`);
   } else if (fixture.expectedSettings.preset === "custom") {
-    assert.equal(await page.locator("#api-key").count(), 0, `${fixture.name}: keyless local provider remains keyless`);
+    assert.equal(await page.locator("#api-key").count(), 1, `${fixture.name}: local provider exposes an optional key field`);
+    assert.equal(await page.inputValue("#api-key"), "", `${fixture.name}: legacy OpenRouter key is not reused for local provider`);
   }
 }
 
