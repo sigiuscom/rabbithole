@@ -3,9 +3,7 @@ import {
   agentAttached,
   agentDown,
   agentReason,
-  bannerEl,
-  bannerMsg,
-  bannerTitle,
+  bannerNotice,
   buildLoading,
   canvasBuilt,
   closed,
@@ -68,10 +66,6 @@ export function setTransportAdapter(adapter){
 }
 
 export function initTransportStatus(){
-  document.getElementById("banner-x").addEventListener("click", function(){
-    if (bannerKey) bannerDismissed[bannerKey] = true;
-    bannerEl.classList.remove("visible");
-  });
 }
 
 export function post(payload){
@@ -324,15 +318,15 @@ export function handleServer(msg){
   var bannerDismissed = {};
   function setBanner(key, warn, title, msg){
     bannerKey = key;
-    if (bannerDismissed[key]){ bannerEl.classList.remove("visible"); return; }
-    bannerTitle.textContent = title;
-    bannerMsg.textContent = msg;
-    bannerEl.classList.toggle("warn", !!warn);
-    bannerEl.classList.add("visible");
+    if (bannerDismissed[key]){ bannerNotice.hide(); return; }
+    document.getElementById("banner").classList.toggle("warn", !!warn);
+    bannerNotice.show({ title: title, message: msg, onDismiss: function(){
+      if (bannerKey) bannerDismissed[bannerKey] = true;
+    } });
   }
   function clearBanner(){
     bannerKey = null;
-    bannerEl.classList.remove("visible");
+    bannerNotice.hide();
   }
   function hasPendingAsks(){
     for (var k in nodes) if (nodes[k].status === "pending") return true;

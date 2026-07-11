@@ -10,6 +10,7 @@ import { startRabbithole } from "../ui/entry.js";
 import { activateFocusTrap } from "../ui/focus-trap.js";
 import { fieldMarkup, wireField } from "../ui/primitives/field.js";
 import { buttonMarkup } from "../ui/primitives/button.js";
+import { wireNotice } from "../ui/primitives/notice.js";
 import { setSnapshotHooks, buildSnapshotHydration, buildSnapshotHtml } from "../ui/snapshot.js";
 import { openUrlToStoredHole } from "./ingest/url.js";
 import { downloadRabbitholeExport, importRabbitholeFile, rabbitholeFilename } from "./portable.js";
@@ -30,6 +31,7 @@ let composerPath = "";
 let pendingComposerAction = null;
 let pendingBranchRetry = null;
 let lastHoleCount = 0;
+let toastNotice = null;
 
 ensureCanonical();
 applyInitialWebTheme();
@@ -111,7 +113,8 @@ function renderShell() {
       ${buttonMarkup({ bare: true, id: "blank-start-new", className: "blank-start-new", label: "New Rabbithole", kbdHint: "N", svgIconHtml: '<svg width="14" height="14" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none" aria-hidden="true"><path d="M8 3.25v9.5"/><path d="M3.25 8h9.5"/></svg>' })}
       <p class="blank-start-sub">or drop a PDF or Markdown file anywhere</p>
     </div>
-    <div id="web-toast" class="web-toast" aria-live="polite"></div>`;
+    <div id="web-toast" class="web-toast"><span data-notice-message></span>${buttonMarkup({ bare: true, label: "Action", hidden: true, dataAttrs: { noticeAction: "" } })}</div>`;
+  toastNotice = wireNotice(document.getElementById("web-toast"), { variant: "toast" });
   document.getElementById("toolbar")?.insertAdjacentHTML("afterbegin",
     `<span class="toolbar-brand" title="Rabbithole" aria-label="Rabbithole">${bunnyMarkSvg()}</span><span class="sep toolbar-brand-sep"></span>`);
   railOpen = loadRailOpen();
@@ -968,25 +971,7 @@ async function buildLiveAssetData(holeId) {
 }
 
 function showToast({ message, actionLabel = "", timeoutMs = 4000, onAction = null } = {}) {
-  const el = document.getElementById("web-toast");
-  if (!el) return;
-  el.innerHTML = `<span>${escapeHtml(message || "")}</span>${actionLabel ? `<button type="button">${escapeHtml(actionLabel)}</button>` : ""}`;
-  el.classList.add("visible");
-  let done = false;
-  const finish = () => {
-    if (done) return;
-    done = true;
-    el.classList.remove("visible");
-  };
-  const timer = setTimeout(finish, timeoutMs);
-  const button = el.querySelector("button");
-  if (button) {
-    button.addEventListener("click", async () => {
-      clearTimeout(timer);
-      await onAction?.();
-      finish();
-    }, { once: true });
-  }
+  toastNotice?.show({ message, actionLabel, onAction, duration: timeoutMs });
 }
 
 function setIngestStatus(message, tone = "") {

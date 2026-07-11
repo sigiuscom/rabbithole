@@ -119,8 +119,9 @@ Scenario references use the Part VI group and shortened ledger wording. `—` me
 | calm landing, three-path composer, path copy, dismiss-without-create | C2 | Protects first-run navigation and empty state. | — |
 | blank-state centering and composer initial focus | C2 | Protects visible placement and initial keyboard focus. | Chrome: keyboard-only completion (small opening/closing subset) |
 | toolbar Button kit conformance | C2 | Requires every reader/canvas toolbar button to declare `type="button"` and expose a non-empty accessible name. | Chrome: toolbar accessibility |
+| Notice timer replacement, hover pause, live regions, and banner dismiss | C2 | Requires one wired-shell Notice contract to replace timers without early hiding, pause timed feedback during interaction, announce politely, and dismiss persistent banners. | Chrome: transient feedback accessibility |
 | reader/canvas toolbar keyboard activation and focus-visible rings | C2 | Exercises Enter/Space activation across both modes and requires the constitutional keyboard-only ring on both toolbar families. | Chrome: keyboard-only completion; focus visibility |
-| warm re-entry, hash precedence, rail delete fallback | C2 | Protects saved-hole navigation and recovery. | — |
+| warm re-entry, hash precedence, rail delete fallback, and Undo | C2 | Protects saved-hole navigation, recovery, and actionable-toast restoration. | — |
 | first ask key validation and streamed root creation | C2 | Protects BYOK first-run streaming behavior. | Generation: 401/403 (pre-stream validation only); title never arrives (non-sentinel root title path only) |
 | rail content/geometry exact values | C4 | Pins the Phase 2 semantic rail width, panel padding, and symmetric row-padding geometry. | — |
 | keyboard-opened rail holds focus without a container ring; Escape closes only the rail | C2 | Focus policy: the panel takes focus so keys flow into rows, container emphasis must not impersonate the keyboard ring (was a UA `outline: auto` around the whole panel), and Escape must not fall through to the canvas client's open-the-reader shortcut (it did — the rail handler leaked propagation). | Chrome: keyboard-only completion (rail subset) |
@@ -274,11 +275,11 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 | Category | Count |
 |---|---:|
 | C1 compatibility contract | 41 |
-| C2 behavioral product contract | 101 |
+| C2 behavioral product contract | 102 |
 | C3 implementation snapshot | 10 |
 | C4 known defect | 5 |
 | C5 design target | 0 |
-| **Total** | **157** |
+| **Total** | **158** |
 
 ## Known-defect fossils
 

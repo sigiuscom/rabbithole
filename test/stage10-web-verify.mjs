@@ -13,6 +13,8 @@ const PROVIDER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const KEY_URL = "https://openrouter.ai/api/v1/key";
 const MODEL_URL = "https://openrouter.ai/api/v1/models";
 const LOCAL_MODEL_URL = "http://localhost:11434/v1/models";
+const NOTICE_SOURCE = (await fs.readFile(path.join(ROOT, "src/ui/primitives/notice.js"), "utf8"))
+  .replace("export function wireNotice", "window.wireNotice = function wireNotice");
 
 try {
   await fs.access(path.join(WEB_DIST, "index.html"));
@@ -29,6 +31,7 @@ const baseUrl = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch();
 
 try {
+  await verifyNoticePrimitive();
   await verifyLandingAndComposer();
   await verifyComboboxCatalogStates();
   await verifyAskKeyUxAndRail();
@@ -37,6 +40,47 @@ try {
 } finally {
   await browser.close();
   await new Promise((resolve) => server.close(resolve));
+}
+
+async function verifyNoticePrimitive() {
+  const page = await browser.newPage();
+  await page.setContent(`<div id="banner"><span data-notice-title></span><span data-notice-message></span><button data-notice-dismiss>Dismiss</button></div>
+    <div id="hint" data-notice-message></div>
+    <div id="toast"><span data-notice-message></span><button data-notice-action hidden>Action</button></div>`);
+  await page.addScriptTag({ content: NOTICE_SOURCE });
+  const attrs = await page.evaluate(() => {
+    const hint = wireNotice(document.getElementById("hint"), { variant: "hint" });
+    const toast = wireNotice(document.getElementById("toast"), { variant: "toast" });
+    const banner = wireNotice(document.getElementById("banner"), { variant: "banner" });
+    banner.show({ title: "Offline", message: "Reading stays available." });
+    return ["hint", "toast", "banner"].map((id) => {
+      const el = document.getElementById(id);
+      return [el.getAttribute("role"), el.getAttribute("aria-live"), el.getAttribute("aria-atomic")];
+    });
+  });
+  assert.deepEqual(attrs, [["status", "polite", "true"], ["status", "polite", "true"], ["status", "polite", "true"]], "Notice variants should expose polite atomic live regions");
+  await page.click("[data-notice-dismiss]");
+  assert.equal(await page.locator("#banner").evaluate((el) => el.classList.contains("visible")), false, "banner dismiss should hide the wired shell");
+
+  await page.evaluate(() => {
+    const toast = wireNotice(document.getElementById("toast"), { variant: "toast" });
+    toast.show({ message: "first", duration: 80 });
+    setTimeout(() => toast.show({ message: "second", duration: 220 }), 30);
+  });
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator("#toast").innerText(), "second", "a replacement notice should own the single visible message");
+  assert.equal(await page.locator("#toast").evaluate((el) => el.classList.contains("visible")), true, "the replaced timer must not hide the newer notice early");
+  await page.waitForTimeout(180);
+  assert.equal(await page.locator("#toast").evaluate((el) => el.classList.contains("visible")), false, "the replacement timer should eventually hide the notice");
+
+  await page.evaluate(() => wireNotice(document.getElementById("toast"), { variant: "toast" }).show({ message: "paused", actionLabel: "Undo", duration: 100 }));
+  await page.hover("#toast");
+  await page.waitForTimeout(160);
+  assert.equal(await page.locator("#toast").evaluate((el) => el.classList.contains("visible")), true, "hover should pause a toast timer");
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(120);
+  assert.equal(await page.locator("#toast").evaluate((el) => el.classList.contains("visible")), false, "a toast timer should resume after hover");
+  await page.close();
 }
 
 async function verifyLandingAndComposer() {
@@ -128,12 +172,19 @@ async function verifyLandingAndComposer() {
   assert.equal(railIcon.expanded, "true");
   assert.equal(railIcon.filled, true, "rail toggle icon should switch to its filled state while the rail is open");
   assert.equal(await page.locator(`.rail-row[data-hole="${second}"] .rail-delete`).count(), 1);
-  await page.locator(`.rail-row[data-hole="${second}"]`).hover();
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "networkidle", timeout: 5000 }).catch(() => null),
-    page.locator(`.rail-row[data-hole="${second}"] .rail-delete`).click(),
-  ]);
+  await page.locator(`.rail-row[data-hole="${first}"] .rail-open`).click();
   await page.waitForFunction((id) => window.__rabbitholeTest?.currentHoleId() === id, first);
+  await ensureRailOpen(page);
+  await page.locator(`.rail-row[data-hole="${second}"]`).hover();
+  await page.locator(`.rail-row[data-hole="${second}"] .rail-delete`).click();
+  await page.waitForSelector("#web-toast.visible");
+  assert.equal(await page.locator("#web-toast [data-notice-action]").innerText(), "Undo");
+  await page.click("#web-toast [data-notice-action]");
+  await page.waitForFunction(async (id) => (await window.__rabbitholeTest.listStoredHoles()).some((hole) => hole.hole_id === id), second);
+  assert.equal(await page.locator(`.rail-row[data-hole="${second}"]`).count(), 1, "rail delete Undo should restore the deleted Rabbithole");
+  await page.locator(`.rail-row[data-hole="${second}"]`).hover();
+  await page.locator(`.rail-row[data-hole="${second}"] .rail-delete`).click();
+  await page.waitForFunction(async (id) => !(await window.__rabbitholeTest.listStoredHoles()).some((hole) => hole.hole_id === id), second);
   await page.evaluate((deletedId) => localStorage.setItem("rh-last-hole", deletedId), second);
   await page.goto(`${baseUrl}/?last=deleted`, { waitUntil: "networkidle" });
   await page.waitForFunction((id) => window.__rabbitholeTest?.currentHoleId() === id, first);

@@ -6,6 +6,7 @@ import {
   lensLabel as sharedLensLabel,
   truncate as sharedTruncate
 } from "../core/model.js";
+import { wireNotice } from "./primitives/notice.js";
 import {
   DEFAULT_CHILD,
   DEFAULT_ROOT,
@@ -55,8 +56,8 @@ export var askGo = null;
 export var zoomLabel = null;
 export var hintEl = null;
 export var bannerEl = null;
-export var bannerTitle = null;
-export var bannerMsg = null;
+export var hintNotice = null;
+export var bannerNotice = null;
 export var composerInner = null;
 export var composerText = null;
 export var composerSend = null;
@@ -71,7 +72,6 @@ export var palResults = null;
 export var peekEl = null;
 export var shareMenu = null;
 export var confirmEl = null;
-var hintTimer = 0;
 
 var coreHooks = {
   post: function(){ return Promise.resolve({ ok: true }); },
@@ -105,7 +105,6 @@ export function initCore(inputHydration) {
   canvasFramed = false;
   viewAdjusted = false;
   orderCounter = 0;
-  hintTimer = 0;
   sinceDismissed = false;
   sinceArmed = false;
 
@@ -121,8 +120,8 @@ export function initCore(inputHydration) {
   zoomLabel = document.getElementById("zoom-label");
   hintEl = document.getElementById("hint");
   bannerEl = document.getElementById("banner");
-  bannerTitle = document.getElementById("banner-title");
-  bannerMsg = document.getElementById("banner-msg");
+  hintNotice = wireNotice(hintEl, { variant: "hint" });
+  bannerNotice = wireNotice(bannerEl, { variant: "banner" });
   composerInner = document.getElementById("composer-inner");
   composerText = document.getElementById("composer-text");
   composerSend = document.getElementById("composer-send");
@@ -473,8 +472,5 @@ export function toggleTheme(){
 }
 
 export function flashHint(msg){
-  if (hintTimer) clearTimeout(hintTimer);
-  hintEl.textContent = msg;
-  hintEl.classList.add("flash");
-  hintTimer = setTimeout(function(){ hintTimer = 0; hintEl.classList.remove("flash"); }, 4000);
+  hintNotice.show({ message: msg, duration: 4000 });
 }

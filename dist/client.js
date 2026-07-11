@@ -1684,6 +1684,122 @@ var RabbitholeClient = (() => {
     return ((_b = node.origin) == null ? void 0 : _b.selected_text) ? BRANCH_SELECTION : BRANCH_FOLLOWUP;
   }
 
+  // src/ui/primitives/notice.js
+  var WIRED = /* @__PURE__ */ new WeakMap();
+  var TIMED = /* @__PURE__ */ new Set(["hint", "toast"]);
+  function wireNotice(element, { variant } = {}) {
+    if (!element) throw new Error("Notice requires an element");
+    if (!(/* @__PURE__ */ new Set(["banner", "hint", "toast"])).has(variant)) throw new Error("Unknown Notice variant: " + variant);
+    const existing = WIRED.get(element);
+    if (existing) {
+      if (existing.variant !== variant) throw new Error("Notice shell is already wired as " + existing.variant);
+      return existing.handle;
+    }
+    const messageEl = element.querySelector("[data-notice-message]") || element;
+    const titleEl = element.querySelector("[data-notice-title]");
+    const actionEl = element.querySelector("[data-notice-action]");
+    const dismissEl = element.querySelector("[data-notice-dismiss]");
+    let timer = 0;
+    let deadline = 0;
+    let remaining = 0;
+    let action = null;
+    let dismiss = null;
+    let run = 0;
+    let hovered = false;
+    let focused = false;
+    if (variant === "hint" || variant === "toast") {
+      element.setAttribute("role", "status");
+      element.setAttribute("aria-live", "polite");
+      element.setAttribute("aria-atomic", "true");
+    } else if (!element.hasAttribute("aria-live") && !element.hasAttribute("role")) {
+      element.setAttribute("role", "status");
+      element.setAttribute("aria-live", "polite");
+      element.setAttribute("aria-atomic", "true");
+    }
+    function visibleClass(on) {
+      element.classList.toggle(variant === "hint" ? "flash" : "visible", on);
+    }
+    function clearTimer() {
+      if (timer) clearTimeout(timer);
+      timer = 0;
+    }
+    function hide() {
+      run += 1;
+      clearTimer();
+      remaining = 0;
+      action = null;
+      dismiss = null;
+      visibleClass(false);
+    }
+    function startTimer(token) {
+      clearTimer();
+      if (!TIMED.has(variant) || remaining <= 0) return;
+      deadline = Date.now() + remaining;
+      timer = setTimeout(function() {
+        timer = 0;
+        if (token === run) hide();
+      }, remaining);
+    }
+    function pauseTimer() {
+      if (!timer) return;
+      remaining = Math.max(0, deadline - Date.now());
+      clearTimer();
+    }
+    function resumeTimer() {
+      if (!isVisible2() || timer || hovered || focused || !TIMED.has(variant)) return;
+      startTimer(run);
+    }
+    function isVisible2() {
+      return element.classList.contains(variant === "hint" ? "flash" : "visible");
+    }
+    function show({ title = "", message = "", actionLabel = "", onAction = null, onDismiss = null, duration } = {}) {
+      run += 1;
+      clearTimer();
+      titleEl && (titleEl.textContent = String(title));
+      messageEl.textContent = String(message);
+      action = typeof onAction === "function" ? onAction : null;
+      dismiss = typeof onDismiss === "function" ? onDismiss : null;
+      if (actionEl) {
+        actionEl.textContent = String(actionLabel || "");
+        actionEl.hidden = !actionLabel;
+      }
+      visibleClass(true);
+      remaining = TIMED.has(variant) ? Math.max(0, Number(duration != null ? duration : 4e3)) : 0;
+      if (!hovered && !focused) startTimer(run);
+    }
+    element.addEventListener("mouseenter", function() {
+      hovered = true;
+      pauseTimer();
+    });
+    element.addEventListener("mouseleave", function() {
+      hovered = false;
+      resumeTimer();
+    });
+    element.addEventListener("focusin", function() {
+      focused = true;
+      pauseTimer();
+    });
+    element.addEventListener("focusout", function(event) {
+      focused = element.contains(event.relatedTarget);
+      resumeTimer();
+    });
+    actionEl == null ? void 0 : actionEl.addEventListener("click", async function() {
+      const callback = action;
+      const token = run;
+      clearTimer();
+      if (callback) await callback();
+      if (token === run) hide();
+    });
+    dismissEl == null ? void 0 : dismissEl.addEventListener("click", function() {
+      const callback = dismiss;
+      hide();
+      callback == null ? void 0 : callback();
+    });
+    const handle = { show, hide, isVisible: isVisible2 };
+    WIRED.set(element, { variant, handle });
+    return handle;
+  }
+
   // src/core/layout.js
   var DEFAULT_ROOT = Object.freeze({ w: 480, h: 580 });
   var DEFAULT_CHILD = Object.freeze({ w: 420, h: 460 });
@@ -1812,8 +1928,8 @@ var RabbitholeClient = (() => {
   var zoomLabel = null;
   var hintEl = null;
   var bannerEl = null;
-  var bannerTitle = null;
-  var bannerMsg = null;
+  var hintNotice = null;
+  var bannerNotice = null;
   var composerInner = null;
   var composerText = null;
   var composerSend = null;
@@ -1828,7 +1944,6 @@ var RabbitholeClient = (() => {
   var peekEl = null;
   var shareMenu = null;
   var confirmEl = null;
-  var hintTimer = 0;
   var coreHooks = {
     post: function() {
       return Promise.resolve({ ok: true });
@@ -1866,7 +1981,6 @@ var RabbitholeClient = (() => {
     canvasFramed = false;
     viewAdjusted = false;
     orderCounter = 0;
-    hintTimer = 0;
     sinceDismissed = false;
     sinceArmed = false;
     readerMain = document.getElementById("reader-main");
@@ -1881,8 +1995,8 @@ var RabbitholeClient = (() => {
     zoomLabel = document.getElementById("zoom-label");
     hintEl = document.getElementById("hint");
     bannerEl = document.getElementById("banner");
-    bannerTitle = document.getElementById("banner-title");
-    bannerMsg = document.getElementById("banner-msg");
+    hintNotice = wireNotice(hintEl, { variant: "hint" });
+    bannerNotice = wireNotice(bannerEl, { variant: "banner" });
     composerInner = document.getElementById("composer-inner");
     composerText = document.getElementById("composer-text");
     composerSend = document.getElementById("composer-send");
@@ -2287,13 +2401,7 @@ var RabbitholeClient = (() => {
     }
   }
   function flashHint(msg) {
-    if (hintTimer) clearTimeout(hintTimer);
-    hintEl.textContent = msg;
-    hintEl.classList.add("flash");
-    hintTimer = setTimeout(function() {
-      hintTimer = 0;
-      hintEl.classList.remove("flash");
-    }, 4e3);
+    hintNotice.show({ message: msg, duration: 4e3 });
   }
 
   // src/ui/visuals.js
@@ -4647,7 +4755,11 @@ var RabbitholeClient = (() => {
     if (!iconOnly && !label && !ariaLabel) throw new Error("Button requires an accessible name");
     const baseClass = options2.bare ? "" : iconOnly ? "tool-btn tool-icon" : "tool-btn";
     const className = [baseClass, options2.className].filter(Boolean).join(" ");
-    let result = attribute("class", className || void 0) + attribute("id", options2.id) + attribute("type", "button") + attribute("role", options2.role) + attribute("tabindex", options2.tabIndex) + attribute("data-lens", options2.dataLens) + attribute("title", options2.title) + attribute("aria-label", ariaLabel || void 0);
+    let result = attribute("class", className || void 0) + attribute("id", options2.id) + attribute("type", "button") + attribute("role", options2.role) + attribute("tabindex", options2.tabIndex) + attribute("title", options2.title) + attribute("aria-label", ariaLabel || void 0);
+    for (const [name, value] of Object.entries(options2.dataAttrs || {})) {
+      const attrName = "data-" + String(name).replace(/[A-Z]/g, (letter) => "-" + letter.toLowerCase());
+      result += attribute(attrName, value);
+    }
     for (const name of STATEFUL_ARIA) {
       const camelName = name.replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase());
       result += attribute(name, (_a2 = options2[name]) != null ? _a2 : options2[camelName]);
@@ -4723,10 +4835,10 @@ var RabbitholeClient = (() => {
     ${iconButtonMarkup({ bare: true, className: "send-btn", id: "ask-go", title: "Ask (\u21B5)", ariaLabel: "Ask", svgIconHtml: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 12.8V3.6M8 3.6 3.9 7.7M8 3.6l4.1 4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' })}
   </div>
   <div class="ask-lenses" id="ask-lenses">
-    ${buttonMarkup({ bare: true, className: "lens", dataLens: "explain", label: "Explain ", kbdHint: "1" })}
-    ${buttonMarkup({ bare: true, className: "lens", dataLens: "eli5", label: "ELI5 ", kbdHint: "2" })}
-    ${buttonMarkup({ bare: true, className: "lens", dataLens: "example", label: "Example ", kbdHint: "3" })}
-    ${buttonMarkup({ bare: true, className: "lens", dataLens: "deeper", label: "Go Deeper ", kbdHint: "4" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataAttrs: { lens: "explain" }, label: "Explain ", kbdHint: "1" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataAttrs: { lens: "eli5" }, label: "ELI5 ", kbdHint: "2" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataAttrs: { lens: "example" }, label: "Example ", kbdHint: "3" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataAttrs: { lens: "deeper" }, label: "Go Deeper ", kbdHint: "4" })}
   </div>
 </div>
 
@@ -4756,8 +4868,8 @@ var RabbitholeClient = (() => {
   <div class="cf-row">${buttonMarkup({ bare: true, id: "cf-keep", label: "Keep" })}${buttonMarkup({ bare: true, className: "cf-remove", id: "cf-remove", label: "Remove" })}</div>
 </div>
 
-<div id="banner"><div class="banner-body"><span class="banner-title" id="banner-title"></span><span id="banner-msg"></span></div>${iconButtonMarkup({ bare: true, id: "banner-x", title: "Dismiss", ariaLabel: "Dismiss banner", icon: "\xD7" })}</div>
-<div id="hint"></div>
+<div id="banner"><div class="banner-body"><span class="banner-title" id="banner-title" data-notice-title></span><span id="banner-msg" data-notice-message></span></div>${iconButtonMarkup({ bare: true, id: "banner-x", title: "Dismiss", ariaLabel: "Dismiss banner", icon: "\xD7", dataAttrs: { noticeDismiss: "" } })}</div>
+<div id="hint" data-notice-message></div>
 `;
 
   // src/ui/snapshot.js
@@ -31805,10 +31917,6 @@ ${text2}</tr>
     transportAdapter = adapter && typeof adapter === "object" ? adapter : null;
   }
   function initTransportStatus() {
-    document.getElementById("banner-x").addEventListener("click", function() {
-      if (bannerKey) bannerDismissed[bannerKey] = true;
-      bannerEl.classList.remove("visible");
-    });
   }
   function post(payload) {
     if (frozen) return Promise.resolve({ ok: true });
@@ -32099,17 +32207,17 @@ ${text2}</tr>
   function setBanner(key, warn, title, msg) {
     bannerKey = key;
     if (bannerDismissed[key]) {
-      bannerEl.classList.remove("visible");
+      bannerNotice.hide();
       return;
     }
-    bannerTitle.textContent = title;
-    bannerMsg.textContent = msg;
-    bannerEl.classList.toggle("warn", !!warn);
-    bannerEl.classList.add("visible");
+    document.getElementById("banner").classList.toggle("warn", !!warn);
+    bannerNotice.show({ title, message: msg, onDismiss: function() {
+      if (bannerKey) bannerDismissed[bannerKey] = true;
+    } });
   }
   function clearBanner() {
     bannerKey = null;
-    bannerEl.classList.remove("visible");
+    bannerNotice.hide();
   }
   function hasPendingAsks() {
     for (var k in nodes) if (nodes[k].status === "pending") return true;

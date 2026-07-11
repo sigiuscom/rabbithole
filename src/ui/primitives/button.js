@@ -20,9 +20,12 @@ function buttonAttributes(options, iconOnly) {
     attribute("type", "button") +
     attribute("role", options.role) +
     attribute("tabindex", options.tabIndex) +
-    attribute("data-lens", options.dataLens) +
     attribute("title", options.title) +
     attribute("aria-label", ariaLabel || undefined);
+  for (const [name, value] of Object.entries(options.dataAttrs || {})) {
+    const attrName = "data-" + String(name).replace(/[A-Z]/g, (letter) => "-" + letter.toLowerCase());
+    result += attribute(attrName, value);
+  }
   for (const name of STATEFUL_ARIA) {
     const camelName = name.replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase());
     result += attribute(name, options[name] ?? options[camelName]);

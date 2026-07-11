@@ -59,10 +59,10 @@ export const CANVAS_SHELL = `
     ${iconButtonMarkup({ bare: true, className: "send-btn", id: "ask-go", title: "Ask (↵)", ariaLabel: "Ask", svgIconHtml: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 12.8V3.6M8 3.6 3.9 7.7M8 3.6l4.1 4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' })}
   </div>
   <div class="ask-lenses" id="ask-lenses">
-    ${buttonMarkup({ bare: true, className: "lens", dataLens: "explain", label: "Explain ", kbdHint: "1" })}
-    ${buttonMarkup({ bare: true, className: "lens", dataLens: "eli5", label: "ELI5 ", kbdHint: "2" })}
-    ${buttonMarkup({ bare: true, className: "lens", dataLens: "example", label: "Example ", kbdHint: "3" })}
-    ${buttonMarkup({ bare: true, className: "lens", dataLens: "deeper", label: "Go Deeper ", kbdHint: "4" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataAttrs: { lens: "explain" }, label: "Explain ", kbdHint: "1" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataAttrs: { lens: "eli5" }, label: "ELI5 ", kbdHint: "2" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataAttrs: { lens: "example" }, label: "Example ", kbdHint: "3" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataAttrs: { lens: "deeper" }, label: "Go Deeper ", kbdHint: "4" })}
   </div>
 </div>
 
@@ -92,6 +92,6 @@ export const CANVAS_SHELL = `
   <div class="cf-row">${buttonMarkup({ bare: true, id: "cf-keep", label: "Keep" })}${buttonMarkup({ bare: true, className: "cf-remove", id: "cf-remove", label: "Remove" })}</div>
 </div>
 
-<div id="banner"><div class="banner-body"><span class="banner-title" id="banner-title"></span><span id="banner-msg"></span></div>${iconButtonMarkup({ bare: true, id: "banner-x", title: "Dismiss", ariaLabel: "Dismiss banner", icon: "×" })}</div>
-<div id="hint"></div>
+<div id="banner"><div class="banner-body"><span class="banner-title" id="banner-title" data-notice-title></span><span id="banner-msg" data-notice-message></span></div>${iconButtonMarkup({ bare: true, id: "banner-x", title: "Dismiss", ariaLabel: "Dismiss banner", icon: "×", dataAttrs: { noticeDismiss: "" } })}</div>
+<div id="hint" data-notice-message></div>
 `;
