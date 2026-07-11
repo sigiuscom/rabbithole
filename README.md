@@ -170,8 +170,10 @@ and opening that content with `base_url` instead of ingesting the PDF.
   attach to the exact selected text in the parent, collapse, auto-layout.
 - **Navigation:** `j`/`k` walk marks, `↵` opens, `⌫` jumps back up, `⌘K` searches
   the whole hole.
-- **Share/export:** copy any trail or document as Markdown, download a frozen
-  single-file snapshot, or ask the agent for a synthesis of the whole journey.
+- **Share/export:** copy any trail or document as Markdown; use **Download
+  snapshot** for a share/read-anywhere interchange `.html`; use **Export
+  Rabbithole** for a `.rabbithole` backup or device transfer; or ask the agent
+  for a synthesis of the whole journey.
 - **Durable asks:** questions asked while the agent is away are saved and
   re-queued on resume — the agent answers them first thing.
 - **Persistence:** holes auto-save as JSON under `~/.rabbithole/`; resuming

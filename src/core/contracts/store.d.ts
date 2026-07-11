@@ -41,10 +41,9 @@ export interface RabbitholeStore {
   deleteHole(holeId: string): Promise<void>;
   listAssets(holeId: string): Promise<string[]>;
   /**
-   * @deprecated The implementations currently disagree: `FsStore` returns a
-   * Node `Buffer`, while `IdbStore` returns a browser `Blob`. This honest union
-   * records the Phase 5 store-port defect; Phase 7 must resolve the portable
-   * binary representation (portable.js currently assumes `Blob`).
+   * Implementations expose their native binary type: `FsStore` returns a Node
+   * `Buffer`, while `IdbStore` returns a browser `Blob`. Portable projection
+   * normalizes either representation at its boundary.
    */
   getAsset(holeId: string, name: string): Promise<Buffer | Blob | null>;
   putAsset(holeId: string, name: string, bytes: AssetBytes): Promise<void>;

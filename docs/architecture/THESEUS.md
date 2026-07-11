@@ -149,7 +149,7 @@ Canonical document model
     └── snapshot projection  (portable projection embedded inert in frozen HTML; hydration DERIVED at load)
 ```
 
-The frozen snapshot already embeds all document data as an ad-hoc hydration object (`src/ui/snapshot.js:169`); the target replaces that shape with the portable projection, making every new snapshot a re-importable interchange file. Import accepts `.rabbithole` and snapshot `.html` (payload extracted as inert data — parsed, size-capped, never executed or inserted).
+The shipped frozen snapshot embeds exactly one portable projection as inert data and derives hydration at load, so every new snapshot is a re-importable interchange file. Import accepts `.rabbithole` and snapshot `.html`; the payload is extracted as text, parsed under uniform caps, and never executed or inserted.
 
 **5. The primitive kit — ten components, delivered vertically.** Button, IconButton, Field, Select, Combobox, Popover, Dialog, Tooltip, Menu, Notice — vanilla, token-styled, one anchoring engine, one focus contract:
 
@@ -197,7 +197,7 @@ Streaming answers · lenses (explain/ELI5/example/deeper) · durable asks **with
 | Contract | Consumers | Policy |
 |---|---|---|
 | `.rabbithole` files in the wild | anyone who exported | forever-readable; `format_version` bumps only when unavoidable; migration fixtures for every historical shape incl. `schema_version: null` (`schema.js:56-62`) |
-| Frozen snapshots in the wild | anyone who shared | immune by design (self-contained); *new* snapshots additionally importable (Phase 7) |
+| Frozen snapshots in the wild | anyone who shared | immune by design (self-contained); current snapshots additionally importable through their inert portable payload |
 | IndexedDB document stores | every returning rabbithole.ing user | migrations on load, fixture-tested; no phase may require "clear your data" |
 | **Device preferences & credentials** | every returning web user | `rh-web-settings`, `rh-web-api-key`, `rh-web-api-keys`, theme, last-hole — migrated with fixtures like any format; incl. provider-id renames (e.g. `custom` → `ollama`) |
 | MCP wire protocol (`answer_branch`, `branch_request`, rehydration) | live agent sessions, older CLI installs | frozen; additive only; controllers adapt *behind* it |
@@ -279,12 +279,11 @@ Eleven phases. Each names **Goal · Build · Wire-in · Delete · Exit criteria 
 **Exit:** host sentinel-free; `GenerationRun` is the only accumulator; both hosts' durable-ask fixtures byte-identical pre/post; MCP replay identical; the "merge the controllers?" question answered by evidence and recorded in Part VII.
 **Risks:** the highest of the plan — error-path parity is where regressions hide; the divergent host semantics are load-bearing product behavior, not cleanup targets.
 
-### Phase 7 — Artifact unification *(M, medium risk)*
+### Phase 7 — Artifact unification *(complete; M, medium risk)*
 
-**Goal:** one canonical model, three deliberate projections; snapshots become interchange files.
-**Build:** snapshot builder embeds the portable projection as an inert JSON block (escaping per `snapshot.js:32-39`); frozen runtime *derives* hydration at load (data-URLs from base64 + extension-derived MIME per the `snapshot.js:12` allowlist; view-state carry-over) — derivation at load, never double-embedding (size budget enforces this); import accepts snapshot `.html` with strict caps (payload size, node/asset counts), inert extraction (parsed as data, never executed/inserted), flowing through `parseRabbitholeFile → migratePersistedHole`; the export-timing rule: snapshot exports serialize *live in-memory state* (they already capture live scroll/view — `snapshot.js:41-50`), `.rabbithole` exports flush pending saves first — both defined, both tested, the ≤400ms debounce gap closed by policy rather than luck; a credential/preference non-leakage test for every projection.
-**Delete (D5):** the ad-hoc hydration serialization (`snapshot.js:52-71,127-141`); export-shape drift.
-**Exit:** round-trip fixed points across all projections with defined normalization (`updated_at`, collision `hole_id`); MCP-authored → snapshotted → web-imported → re-exported hole survives with assets (end-to-end probe); old snapshots still open (immune); size budget green; leakage tests green.
+**Shipped:** `PersistedHole` is the canonical model with three projections: store records; portable `.rabbithole` backups/device transfers carrying all assets; and share/read-anywhere snapshot `.html` files carrying referenced-only assets, one inert portable payload, and a one-time substitution of the live view state. Both browser snapshot download and `/export` emit the same canonical frozen artifact, which can be imported through the inert payload; legacy direct-hydration snapshots remain viewable one-way but are not importable. Imports enforce uniform file, payload, node, and asset caps and clean up a newly created hole and its assets on failure. Portable, snapshot, and store-record leakage checks exclude credentials, and the fixed-point corpus covers all three projections. The export contract drains the UI debounce before the host flush, so snapshots and `.rabbithole` exports include immediate edits; snapshot view state is sampled live at export.
+**Delete (D5), complete:** ad-hoc hydration serialization and export-shape drift.
+**Exit, met:** canonical round-trip fixed points, cross-host snapshot import, legacy viewing, size budgets, leakage matrix, import caps/cleanup, and flush timing are green.
 
 ### Phase 8 — The content spike *(M, medium risk — evidence before contract)*
 

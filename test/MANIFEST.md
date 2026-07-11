@@ -349,7 +349,7 @@ These live-provider eval cases run only through `npm run eval`; their regex/heur
 
 Current inventory arithmetic: `52 + 154 + 11 + 1 + 0 = 218` total cases.
 
-Phase 7 Slice 5b widens the existing corpus round-trip, credential-exclusion, and web snapshot timing rows across all three projections; no cases are added or reclassified, so the exact arithmetic remains `52 + 154 + 11 + 1 + 0 = 218`.
+Phase 7 closure widened the existing corpus round-trip, credential-exclusion, and export-timing rows across all three projections; no cases were added or reclassified, so the exact arithmetic remains `52 + 154 + 11 + 1 + 0 = 218`.
 
 Counts treat each row above as one case; the shared Stage 9 contract counts once per backend because `npm test` executes it against both. Phase 5 Slice 2 added three C1 rows (`41 + 3 = 44`, `184 + 3 = 187`). Slice 3 added three C2 rows and reclassified the reducer mutation probe from C3 to C2: `129 + 3 + 1 = 133`, `10 - 1 = 9`, and `187 + 3 = 190` total. Slice 4 retires the stale-progress C4 as a C2 and adds four ordering goldens: `133 + 1 + 4 = 138`, `4 - 1 = 3`, and `190 + 4 = 194` total. Slice 5 adds one generation-vocabulary C2 case: `138 + 1 = 139` and `194 + 1 = 195` total. Slice 7 adds one content-vocabulary C2 case: `139 + 1 = 140` and `195 + 1 = 196` total. Slice 8 adds one hydration-wire C1 golden: `44 + 1 = 45` and `196 + 1 = 197` total. Slice 9 adds one packaging C1 case and one installed-launch C2 case: `45 + 1 = 46`, `140 + 1 = 141`, and `197 + 2 = 199` total. Phase 6 Slice 1 adds four C2 adapter/parser/error cases and two C3 SSE framing cases: `141 + 4 = 145`, `9 + 2 = 11`, and `199 + 6 = 205` total. Phase 6 Slice 2 adds two C2 cases: `145 + 2 = 147` and `205 + 2 = 207` total. Phase 6 Slice 3 adds three C2 browser-branch wiring cases: `147 + 3 = 150` and `207 + 3 = 210` total. Phase 6 Slice 4 adds three C2 root/authoring/seam-retirement cases: `150 + 3 = 153` and `210 + 3 = 213` total. Phase 7 Slice 1 reclassifies the portable-import MIME fossil from C4 to C1: `46 + 1 = 47`, `3 - 1 = 2`, and the total remains `214`. Phase 7 Slice 2 adds three C1 snapshot-format cases (canonical inert projection, escaping fidelity, and legacy viewing compatibility): `47 + 3 = 50` and `214 + 3 = 217` total. Phase 7 Slice 3 extends the existing frozen-styles C2 case, so the arithmetic remains `50 + 154 + 11 + 2 + 0 = 217`. Phase 7 Slice 4 retires the hand-edited snapshot C4 as an executable C1 boundary case: `50 + 1 = 51`, `2 - 1 = 1`, and the total remains `217`, yielding `51 + 154 + 11 + 1 + 0 = 217`. The MCP snapshot regression fix adds one C2 live-product download case: `154 + 1 = 155` and `217 + 1 = 218`, yielding `51 + 155 + 11 + 1 + 0 = 218`. Phase 7 Slice 5a reclassifies one legacy frozen-export C2 row as a canonical cross-host artifact C1 row: `51 + 1 = 52`, `155 - 1 = 154`, and the total remains `218`, yielding `52 + 154 + 11 + 1 + 0 = 218`.
 
@@ -368,9 +368,9 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 - `stage10-web-verify.mjs:421-442` retains settings surface equality and the optical gear offset; `stage10-web-verify.mjs:486-521` retains share surface equality and exact shell/item padding. Anchoring itself is now a C2 engine contract rather than a bespoke-geometry fossil.
 - No assertion requires settings `innerHTML` rebuilding or focus-hunting. `stage2-verify.mjs:253-271` does rebuild a synthetic content container via `innerHTML`, but its asserted contract is visual mount identity/cache behavior, not that settings/chrome must rebuild. No current case asserts focus restoration after settings close, so the bespoke focus-hunting debt is unprotected rather than fossilized.
 
-## Baseline defects on record
+## Retired baseline defects
 
-Phase 7 Slice 1 retired both portable-projection baseline defects: stage13 now exports asset-bearing corpus fixtures through the real `FsStore` Buffer return, and stage15 requires extension-derived MIME on imported asset Blobs.
+Both portable-projection baseline defects are retired: stage13 exports asset-bearing corpus fixtures through the real `FsStore` Buffer return, and stage15 requires extension-derived MIME on imported asset Blobs.
 
 ## Smoke-detector proof (Phase 1 exit criterion)
 
@@ -390,7 +390,7 @@ Run at commit 0853e1b (2026-07-10): five deliberate regressions, one per instrum
 
 **Phase 1 — instruments/data/security baseline** (most entries closed by stages 13–16; remaining:)
 
-- Data: genuinely very large holes with a budget (the wide-hole fixture and snapshot gauges only cover reference-sized content); extension-bag survival through an old build (refusal is covered; survival semantics await Phase 5 typing); export-vs-debounce timing for the MCP/filesystem projection (stage16's save-window gauge covers the web path only).
+- Data: genuinely very large holes with a budget (the wide-hole fixture and snapshot gauges only cover reference-sized content); extension-bag survival through an old build (refusal is covered; survival semantics await Phase 8's bridge release).
 - Rendering: reduced motion; semantic dark parity.
 - Migration/deploy: a real mid-session deploy (new code opening old IndexedDB, with migration rerun/idempotence — stage15 covers localStorage preferences, not the IDB schema during a live session); CLI version skew with an older CLI against additive wire changes; a v0.1-era hole retained through Phase 9.
 
@@ -401,10 +401,6 @@ Run at commit 0853e1b (2026-07-10): five deliberate regressions, one per instrum
 **Phase 6 — generation normalization**
 
 - Generation: real stream abort; error mid-stream with browser-partial persistence and MCP-partial dropping/re-ask; stale progress after newer `{id,seq}` progress; empty provider answer; missing title fallback; N concurrent streams; delete while streaming; provider/model switch mid-stream; 401/403 during a stream with prompt-and-retry closure; rate limits; tab close mid-stream bounded by the save budget.
-
-**Phase 7 — artifacts**
-
-- Data: actual import-ID collision producing a fresh ID; frozen missing-asset `data:,` fallback. These belong with Phase 1 fixtures but become release gates no later than artifact unification.
 
 ### Part III instruments
 

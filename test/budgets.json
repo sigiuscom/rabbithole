@@ -9,9 +9,9 @@
       "unit": "bytes",
       "tolerance": 0.05,
       "rationale": "Exact file size after a deterministic build.",
-      "baseline": 1050667,
-      "ceiling": 1103200.35,
-      "measured_at_commit": "761c56c"
+      "baseline": 1086048,
+      "ceiling": 1140350.4,
+      "measured_at_commit": "9315c86"
     },
     {
       "id": "bundle_frozen_client_bytes",
@@ -19,29 +19,29 @@
       "unit": "bytes",
       "tolerance": 0.05,
       "rationale": "Exact file size after a deterministic build.",
-      "baseline": 1036900,
-      "ceiling": 1088745,
-      "measured_at_commit": "761c56c"
+      "baseline": 1074347,
+      "ceiling": 1128064.35,
+      "measured_at_commit": "9315c86"
     },
     {
       "id": "snapshot_math_bytes",
       "description": "Frozen HTML size for the math-heavy reference corpus",
       "unit": "bytes",
       "tolerance": 0.05,
-      "rationale": "Exact UTF-8 snapshot size. Ratcheted from 1074897: that baseline measured the retired C4 defect (web exports shipped an empty style block); styled self-contained exports embed the serialized web stylesheet (~457KB incl. fonts and KaTeX).",
-      "baseline": 1554504,
-      "ceiling": 1632229.2,
-      "measured_at_commit": "94f05d7"
+      "rationale": "Exact UTF-8 snapshot size. Frozen artifacts embed exactly the canonical canvas + self-contained KaTeX stylesheet (web chrome CSS excluded since the explicit-stylesheet unification), one inert portable payload, and the frozen client; ratcheted from the Phase 4 styled baseline through the Phase 7 canonicalization.",
+      "baseline": 1542622,
+      "ceiling": 1619753.1,
+      "measured_at_commit": "9315c86"
     },
     {
       "id": "snapshot_assets_bytes",
       "description": "Frozen HTML size for the PNG/SVG reference corpus",
       "unit": "bytes",
       "tolerance": 0.05,
-      "rationale": "Exact UTF-8 snapshot size including assets. Ratcheted from 1075004: that baseline measured the retired C4 defect (web exports shipped an empty style block); styled self-contained exports embed the serialized web stylesheet (~457KB incl. fonts and KaTeX).",
-      "baseline": 1554611,
-      "ceiling": 1632341.55,
-      "measured_at_commit": "94f05d7"
+      "rationale": "Exact UTF-8 snapshot size including assets. Frozen artifacts embed exactly the canonical canvas + self-contained KaTeX stylesheet (web chrome CSS excluded since the explicit-stylesheet unification), one inert portable payload, and the frozen client; ratcheted from the Phase 4 styled baseline through the Phase 7 canonicalization.",
+      "baseline": 1542653,
+      "ceiling": 1619785.65,
+      "measured_at_commit": "9315c86"
     },
     {
       "id": "snapshot_math_build_ms",
