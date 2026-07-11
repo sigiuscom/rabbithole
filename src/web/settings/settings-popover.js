@@ -40,8 +40,8 @@ export function createSettingsPopover(options) {
     const preset = providerFor(settings.preset);
     const currentModel = settings.answer_model || preset.answer_model;
     surface.querySelector("#settings-panel").dataset.preset = preset.id;
-    host.innerHTML = `${preset.id === "custom" ? `<div class="settings-section endpoint-section">${fieldMarkup({ id: "provider-base", label: "Endpoint", value: settings.base_url || "", placeholder: "http://localhost:11434/v1", hint: "Use an OpenAI-compatible endpoint. Localhost works directly; remote origins require a self-hosted build." })}</div>` : ""}
-      ${preset.model_source === "catalog" ? `<div class="settings-section model-section"><div class="settings-row"><span class="settings-label" id="model-select-label">Model</span>${comboboxMarkup({ id: "model-select", valueId: "model-select-name", labelledBy: "model-select-label", value: currentModel, label: modelDisplayName(currentModel), title: currentModel, iconHtml: chevron })}</div></div>` : `<div class="settings-section model-section local-model-section"><div class="settings-row"><span class="settings-label" id="local-model-label">Model</span>${comboboxMarkup({ id: "local-model", labelledBy: "local-model-label", value: currentModel, label: currentModel, title: currentModel, iconHtml: chevron })}</div><small class="field-hint">Use the exact name shown by <code>ollama list</code>.</small></div>`}
+    host.innerHTML = `${preset.endpoint_editable ? `<div class="settings-section endpoint-section">${fieldMarkup({ id: "provider-base", label: "Endpoint", value: settings.base_url || "", placeholder: preset.base_url, hint: preset.endpoint_hint || "Use an OpenAI-compatible endpoint. Localhost works directly; remote origins require a self-hosted build." })}</div>` : ""}
+      ${preset.model_source === "catalog" ? `<div class="settings-section model-section"><div class="settings-row"><span class="settings-label" id="model-select-label">Model</span>${comboboxMarkup({ id: "model-select", valueId: "model-select-name", labelledBy: "model-select-label", value: currentModel, label: modelDisplayName(currentModel), title: currentModel, iconHtml: chevron })}</div></div>` : preset.model_source === "manual" ? `<div class="settings-section model-section">${fieldMarkup({ id: "provider-model", label: "Model or deployment", value: currentModel, hint: "Use the exact Azure deployment name, for example gpt-5.6-terra." })}</div>` : `<div class="settings-section model-section local-model-section"><div class="settings-row"><span class="settings-label" id="local-model-label">Model</span>${comboboxMarkup({ id: "local-model", labelledBy: "local-model-label", value: currentModel, label: currentModel, title: currentModel, iconHtml: chevron })}</div><small class="field-hint">Use the exact name shown by <code>ollama list</code>.</small></div>`}
       ${preset.requires_key ? `<div class="settings-section key-section">${fieldMarkup({ id: "api-key", type: "password", label: `${preset.label} key`, value: getApiKey(settings), placeholder: apiKeyPlaceholder(settings.preset), autocomplete: "off", spellcheck: "false", toggleId: "api-key-toggle", toggleHtml: options.eyeSvg(false), labelAfterHtml: preset.id === "openrouter" ? `<a class="key-get" href="${OPENROUTER_KEYS_URL}" target="_blank" rel="noreferrer">Get a key →</a>` : "", status: { id: "api-key-status", className: "key-status idle visible", text: keyIdleWhisper(preset) } })}<label class="settings-row remember-row" for="session-only"><span class="switch-copy"><strong>Remember on this device</strong><small>Turn off on shared computers.</small></span><span class="switch" aria-hidden="true"><input id="session-only" type="checkbox" role="switch" ${settings.session_only === false ? "checked" : ""}><span class="switch-track"></span></span></label></div>` : ""}
       <details class="settings-advanced"><summary>Advanced</summary><div class="settings-advanced-grid">${fieldMarkup({ id: "answer-model", label: "Answer model", value: settings.answer_model || "", hint: testedModelHint(settings.answer_model || preset.answer_model), hintClass: "model-hint", hintAttrs: { "data-model-hint": "answer" } })}${fieldMarkup({ id: "author-model", label: "Author model", value: settings.author_model || "", hint: testedModelHint(settings.author_model || preset.author_model), hintClass: "model-hint", hintAttrs: { "data-model-hint": "author" } })}${fieldMarkup({ id: "fetch-proxy-url", label: "Link relay", value: settings.fetch_proxy_url || "", placeholder: "https://your-relay.example/?url=", hint: "When a site blocks in-browser fetching, links open through this relay instead. It sees only the page URL — never your key or your questions." })}</div></details>`;
     wireConditionalSections(host);
@@ -50,7 +50,7 @@ export function createSettingsPopover(options) {
 
   function wireConditionalSections(host) {
     wireModelComboboxes(host);
-    ["provider-base", "answer-model", "author-model", "fetch-proxy-url"].forEach((id) => wireField(host, { id }));
+    ["provider-base", "provider-model", "answer-model", "author-model", "fetch-proxy-url"].forEach((id) => wireField(host, { id }));
     wireField(host, { id: "api-key", toggleId: "api-key-toggle", renderToggle: options.eyeSvg });
     const keyInput = host.querySelector("#api-key");
     let timer = 0;
@@ -63,6 +63,11 @@ export function createSettingsPopover(options) {
     }
     const liveField = (id, key) => host.querySelector(`#${id}`)?.addEventListener("change", (event) => { applyPatch({ [key]: event.target.value.trim() }); updateModelHints(); syncModelSelectLabel(); });
     liveField("provider-base", "base_url"); liveField("answer-model", "answer_model"); liveField("author-model", "author_model"); liveField("fetch-proxy-url", "fetch_proxy_url");
+    host.querySelector("#provider-model")?.addEventListener("change", (event) => {
+      const model = event.target.value.trim();
+      applyPatch({ author_model: model, answer_model: model });
+      updateModelHints();
+    });
     host.querySelector("#answer-model")?.addEventListener("input", updateModelHints);
     host.querySelector("#author-model")?.addEventListener("input", updateModelHints);
     updateModelHints();

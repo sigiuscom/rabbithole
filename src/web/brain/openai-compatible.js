@@ -3,11 +3,12 @@ import { ProviderError, normalizeProviderError } from "./errors.js";
 import { adaptBranchGeneration, adaptTextGeneration } from "./generation-events.js";
 
 export class OpenAICompatibleBrain {
-  constructor({ baseUrl, apiKey, authorModel, answerModel, extraHeaders = {}, title = "Rabbithole" } = {}) {
+  constructor({ baseUrl, apiKey, authorModel, answerModel, auth = "bearer", extraHeaders = {}, title = "Rabbithole" } = {}) {
     this.baseUrl = normalizeBaseUrl(baseUrl);
     this.apiKey = apiKey || "";
     this.authorModel = authorModel || answerModel || "anthropic/claude-sonnet-5";
     this.answerModel = answerModel || this.authorModel;
+    this.auth = auth;
     this.extraHeaders = extraHeaders || {};
     this.title = title;
   }
@@ -25,6 +26,7 @@ export class OpenAICompatibleBrain {
       body,
       signal,
       extraHeaders: this.extraHeaders,
+      auth: this.auth,
       title: this.title,
     }));
   }
@@ -42,6 +44,7 @@ export class OpenAICompatibleBrain {
       body,
       signal,
       extraHeaders: this.extraHeaders,
+      auth: this.auth,
       title: this.title,
     }));
   }
@@ -59,12 +62,13 @@ export class OpenAICompatibleBrain {
       body,
       signal,
       extraHeaders: this.extraHeaders,
+      auth: this.auth,
       title: this.title,
     }), { fallbackTitle: context?.fallbackTitle });
   }
 }
 
-export async function* streamOpenAICompatible({ url, apiKey, body, signal, extraHeaders = {}, title = "Rabbithole" }) {
+export async function* streamOpenAICompatible({ url, apiKey, body, signal, auth = "bearer", extraHeaders = {}, title = "Rabbithole" }) {
   let response;
   try {
     const headers = {
@@ -72,7 +76,10 @@ export async function* streamOpenAICompatible({ url, apiKey, body, signal, extra
       Accept: "text/event-stream",
       ...extraHeaders,
     };
-    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+    if (apiKey) {
+      if (auth === "api-key") headers["api-key"] = apiKey;
+      else headers.Authorization = `Bearer ${apiKey}`;
+    }
     if (url.startsWith("https://openrouter.ai/")) {
       headers["HTTP-Referer"] = globalThis.location?.origin || "https://rabbithole.ing";
       headers["X-Title"] = title;

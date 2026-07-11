@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import { GenerationRun } from "../src/core/generation-run.js";
 import { createHoleState, reduceHoleEvent } from "../src/core/reducer.js";
 import { AnthropicDirectBrain, parseAnthropicSseEvent } from "../src/web/brain/anthropic-messages.js";
+import { createBrain, providerFor, settingsForProvider } from "../src/web/brain/index.js";
 import { ProviderError, normalizeProviderError } from "../src/web/brain/errors.js";
 import { adaptBranchGeneration, adaptTextGeneration } from "../src/web/brain/generation-events.js";
 import { OpenAICompatibleBrain, parseOpenAISseEvent, streamOpenAICompatible } from "../src/web/brain/openai-compatible.js";
@@ -55,6 +56,32 @@ try {
 assert.equal(parseOpenAISseEvent('data: {"choices":[{"message":{"content":"one"}}]}\ndata: {"choices":[{"delta":{"content":" two"}}]}'), "one two");
 assert.equal(parseOpenAISseEvent("data: [DONE]"), "");
 console.log("ok stage18: OpenAI SSE arbitrary fragmentation, multi-event chunks, CRLF, and DONE");
+
+const azureFoundry = providerFor("azure-foundry");
+assert.equal(azureFoundry.base_url, "https://g42-openai-sweden-central.openai.azure.com/openai/v1");
+assert.equal(azureFoundry.answer_model, "gpt-5.6-terra");
+assert.equal(azureFoundry.auth, "api-key");
+const azureSettings = settingsForProvider("azure-foundry");
+assert.equal(azureSettings.preset, "azure-foundry");
+let azureRequest;
+try {
+  globalThis.fetch = async (url, options) => {
+    azureRequest = { url: String(url), headers: options.headers, body: JSON.parse(options.body) };
+    return responseFromChunks(chunksOf(openAiWire, [openAiWire.length]));
+  };
+  const azureBrain = createBrain(azureSettings, "azure-fixture-key");
+  assert.deepEqual(await collect(azureBrain.authorExplainer({ question: "why" })), [
+    { type: "text", delta: "alpha" },
+    { type: "text", delta: " beta" },
+  ]);
+} finally {
+  globalThis.fetch = originalFetch;
+}
+assert.equal(azureRequest.url, "https://g42-openai-sweden-central.openai.azure.com/openai/v1/chat/completions");
+assert.equal(azureRequest.headers["api-key"], "azure-fixture-key");
+assert.equal(azureRequest.headers.Authorization, undefined);
+assert.equal(azureRequest.body.model, "gpt-5.6-terra");
+console.log("ok stage18: Azure AI Foundry uses the configured v1 endpoint and api-key authentication");
 
 const anthropicEvent = 'event: content_block_delta\r\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"hello"}}';
 assert.equal(parseAnthropicSseEvent(anthropicEvent), "hello");

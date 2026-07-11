@@ -15,7 +15,7 @@ locally: no account, no API keys, nothing leaves your machine.
 ## Use it on the web
 
 Open **[rabbithole.ing](https://rabbithole.ing)** for the browser app:
-bring your own key, choose OpenRouter (recommended), Anthropic, OpenAI, or a
+bring your own key, choose OpenRouter (recommended), Azure AI Foundry, or a
 local OpenAI-compatible endpoint, and start from pasted markdown, PDFs, URLs,
 or `.rabbithole` files. Provider keys stay in your browser and are sent only to
 the provider origin you configure. Holes persist in IndexedDB, so the app keeps

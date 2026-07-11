@@ -18,6 +18,7 @@ export function createBrain(settings, apiKey) {
     apiKey,
     authorModel: settings?.author_model || preset.author_model,
     answerModel: settings?.answer_model || preset.answer_model,
+    auth: preset.auth,
   };
   if (preset.kind === "anthropic-direct") return new AnthropicDirectBrain(common);
   return new OpenAICompatibleBrain(common);
