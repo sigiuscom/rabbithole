@@ -891,6 +891,12 @@ html[data-theme="light"] .native-select-wrap select {
 .key-input-wrap {
   position: relative;
   margin-top: 8px;
+  border-radius: var(--radius-control-lg);
+  transition: box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.key-input-wrap:focus-within {
+  box-shadow: var(--focus-field-shadow);
 }
 
 .key-input-wrap input {
@@ -912,7 +918,6 @@ html[data-theme="light"] .native-select-wrap select {
 .key-input-wrap input:focus {
   outline: none;
   border-color: var(--border-focus);
-  box-shadow: var(--focus-field-shadow);
 }
 
 .key-input-wrap button {
@@ -1060,6 +1065,18 @@ html[data-theme="light"] .native-select-wrap select {
   outline: none;
   border-color: var(--border-focus);
   box-shadow: var(--focus-field-shadow);
+}
+
+.endpoint-section input:focus-visible,
+.local-model-section input:focus-visible,
+.settings-advanced-grid input:focus-visible,
+.key-input-wrap input:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.field-pointer-focus input:focus-visible {
+  outline: none;
 }
 
 .settings-advanced {

@@ -282,6 +282,15 @@ async function verifyAskKeyUxAndRail() {
   assert.equal(await page.locator("#api-key").count(), 0, "Local should not show irrelevant credential UI");
   assert.equal(await page.locator("#model-select").count(), 0, "Local should not use the global OpenRouter model picker");
   assert.equal(await page.locator("#local-model").count(), 1, "Local should expose a plain model id field");
+  assert.deepEqual(await page.evaluate(() => ["provider-base", "local-model"].map((id) => {
+    const input = document.getElementById(id);
+    const label = document.querySelector(`label[for="${id}"]`);
+    const described = (input.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+    return { id, named: !!label?.textContent.trim(), described: described.length > 0 && described.every((ref) => !!document.getElementById(ref)) };
+  })), [
+    { id: "provider-base", named: true, described: true },
+    { id: "local-model", named: true, described: true },
+  ], "Local text fields should have label names and connected Field hints");
   await page.fill("#local-model", "deepseek-r1:7b");
   await page.press("#local-model", "Tab");
   const localSettings = await page.evaluate(() => JSON.parse(localStorage.getItem("rh-web-settings") || "{}"));
@@ -442,6 +451,36 @@ async function verifyCanvasBranching() {
     `settings gear glyph should be optically centered in its button, off by ${gearOffset.dx.toFixed(2)},${gearOffset.dy.toFixed(2)}px`);
   assert.match(await page.locator("#settings-panel").innerText(), /Stored only in this browser/i);
   assert.equal(await page.locator("#model-select").count(), 1, "settings should expose the model picker without opening Advanced");
+  await page.locator(".settings-advanced summary").click();
+  assert.deepEqual(await page.evaluate(() => ["api-key", "answer-model", "author-model", "fetch-proxy-url"].map((id) => {
+    const input = document.getElementById(id);
+    const label = document.querySelector(`label[for="${id}"]`);
+    const described = (input.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+    return { id, named: !!label?.textContent.trim(), described: described.length > 0 && described.every((ref) => !!document.getElementById(ref)) };
+  })), [
+    { id: "api-key", named: true, described: true },
+    { id: "answer-model", named: true, described: true },
+    { id: "author-model", named: true, described: true },
+    { id: "fetch-proxy-url", named: true, described: true },
+  ], "OpenRouter text fields should have label names and connected Field hints or status");
+  assert.equal(await page.getAttribute("#api-key-status", "aria-live"), "polite", "API key Field status should remain a polite live region");
+  await page.click("#api-key");
+  const pointerFieldFocus = await page.evaluate(() => ({
+    outline: getComputedStyle(document.getElementById("api-key")).outlineStyle,
+    halo: getComputedStyle(document.querySelector(".key-input-wrap")).boxShadow,
+  }));
+  assert.equal(pointerFieldFocus.outline, "none", "pointer-focused fields should not show the keyboard ring");
+  assert.notEqual(pointerFieldFocus.halo, "none", "composite field focus should show the field halo");
+  await page.locator("#api-key-toggle").focus();
+  await page.keyboard.press("Shift+Tab");
+  const keyboardFieldFocus = await page.evaluate(() => ({
+    focused: document.activeElement?.id,
+    outline: getComputedStyle(document.getElementById("api-key")).outlineStyle,
+    halo: getComputedStyle(document.querySelector(".key-input-wrap")).boxShadow,
+  }));
+  assert.equal(keyboardFieldFocus.focused, "api-key");
+  assert.notEqual(keyboardFieldFocus.outline, "none", "keyboard-focused fields should show the focus-visible ring");
+  assert.notEqual(keyboardFieldFocus.halo, "none", "keyboard-focused composite fields should retain the field halo");
   await page.click("#model-select");
   await page.waitForSelector("#model-picker:not([hidden])");
   await page.keyboard.press("Escape");

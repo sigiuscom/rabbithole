@@ -7,8 +7,9 @@ import { IdbStore } from "./store/idb-store.js";
 import { DirectRabbitholeHost, createHoleFromMarkdown, createPendingHoleFromQuestion } from "./transport/direct-host.js";
 import { startRabbithole } from "../ui/entry.js";
 import { activateFocusTrap } from "../ui/focus-trap.js";
-import { anchorSurface } from "../ui/overlay/anchor.js";
 import { registerLayer } from "../ui/overlay/layer-stack.js";
+import { openPopover } from "../ui/primitives/popover.js";
+import { fieldMarkup, wireField } from "../ui/primitives/field.js";
 import { setSnapshotHooks, buildSnapshotHydration, buildSnapshotHtml } from "../ui/snapshot.js";
 import { openUrlToStoredHole } from "./ingest/url.js";
 import { downloadRabbitholeExport, importRabbitholeFile, rabbitholeFilename } from "./portable.js";
@@ -33,9 +34,7 @@ let uiStarted = false;
 let railOpen = false;
 let blankZoom = 1;
 let composerTrap = null;
-let settingsTrap = null;
-let settingsPosition = null;
-let settingsLayer = null;
+let settingsPopover = null;
 let settingsPickerLayer = null;
 let composerPath = "";
 let pendingComposerAction = null;
@@ -774,39 +773,27 @@ function openSettingsModal({ focusKey = false, focusSelector = "" } = {}) {
   modal.hidden = false;
   const trigger = document.getElementById("t-settings");
   const dialog = modal.querySelector(".web-settings-dialog");
-  trigger?.setAttribute("aria-expanded", "true");
-  settingsPosition?.dispose();
-  settingsPosition = anchorSurface(trigger, dialog, { placement: "bottom-end" });
   warmModelCatalog();
   const panel = document.getElementById("settings-panel");
   if (panel?.querySelector("#api-key")?.value.trim()) commitSettingsKey(panel);
-  if (settingsTrap) settingsTrap();
   const explicitFocus = focusSelector ? modal.querySelector(focusSelector) : null;
-  settingsTrap = activateFocusTrap(modal, {
+  settingsPopover?.close({ restoreFocus: false });
+  settingsPopover = openPopover({ trigger, surface: dialog, trapRoot: modal, placement: "bottom-end",
     initialFocus: explicitFocus || (focusKey ? modal.querySelector("#api-key") : modal.querySelector(".web-settings-dialog")),
-    restoreFocus: false,
+    onClose: closeSettingsModal,
   });
-  settingsLayer?.({ restoreFocus: false });
-  settingsLayer = registerLayer({ element: dialog, trigger, onClose: closeSettingsModal });
 }
 
 function closeSettingsModal() {
   const modal = document.getElementById("web-settings-modal");
   modal.hidden = true;
-  document.getElementById("t-settings")?.setAttribute("aria-expanded", "false");
   const inline = document.getElementById("settings-inline-key");
   inline.hidden = true;
   inline.innerHTML = "";
   pendingBranchRetry = null;
   if (closeSettingsPickerFn) closeSettingsPickerFn({ refocus: false });
   closeSettingsPickerFn = null;
-  if (settingsTrap) {
-    settingsTrap();
-    settingsTrap = null;
-  }
-  settingsPosition?.dispose();
-  settingsPosition = null;
-  if (settingsLayer) { settingsLayer(); settingsLayer = null; }
+  if (settingsPopover) { settingsPopover.close(); settingsPopover = null; }
 }
 
 function warmModelCatalog() {
@@ -848,13 +835,10 @@ function initSettingsPanel() {
         </span>
       </div>
     </div>
-    ${preset.id === "custom" ? `<div class="settings-section endpoint-section">
-      <label class="field" for="provider-base">
-        <span>Endpoint</span>
-        <input id="provider-base" value="${escapeAttr(settings.base_url || "")}" placeholder="http://localhost:11434/v1">
-        <small class="field-hint">Use an OpenAI-compatible endpoint. Localhost works directly; remote origins require a self-hosted build.</small>
-      </label>
-    </div>` : ""}
+    ${preset.id === "custom" ? `<div class="settings-section endpoint-section">${fieldMarkup({
+      id: "provider-base", label: "Endpoint", value: settings.base_url || "", placeholder: "http://localhost:11434/v1",
+      hint: "Use an OpenAI-compatible endpoint. Localhost works directly; remote origins require a self-hosted build."
+    })}</div>` : ""}
     ${preset.model_source === "catalog" ? `<div class="settings-section model-section">
       <div class="settings-row">
         <span class="settings-label" id="model-select-label">Model</span>
@@ -871,23 +855,16 @@ function initSettingsPanel() {
         </div>
         <div id="model-list" class="model-list" role="listbox" aria-labelledby="model-select-label"></div>
       </div>
-    </div>` : `<div class="settings-section model-section local-model-section">
-      <label class="field" for="local-model">
-        <span>Model</span>
-        <input id="local-model" value="${escapeAttr(currentModel)}" placeholder="llama3.2" autocomplete="off" spellcheck="false">
-        <small class="field-hint">Use the exact name shown by <code>ollama list</code>.</small>
-      </label>
-    </div>`}
+    </div>` : `<div class="settings-section model-section local-model-section">${fieldMarkup({
+      id: "local-model", label: "Model", value: currentModel, placeholder: "llama3.2", autocomplete: "off", spellcheck: "false",
+      hintHtml: "Use the exact name shown by <code>ollama list</code>."
+    })}</div>`}
     ${preset.requires_key ? `<div class="settings-section key-section">
-      <div class="settings-row key-row">
-        <label class="settings-label" for="api-key">${escapeHtml(preset.label)} key</label>
-        ${preset.id === "openrouter" ? `<a class="key-get" href="${OPENROUTER_KEYS_URL}" target="_blank" rel="noreferrer">Get a key →</a>` : ""}
-      </div>
-      <div class="key-input-wrap">
-        <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="${escapeAttr(apiKeyPlaceholder(settings.preset))}" value="${escapeAttr(getApiKey(settings))}">
-        <button id="api-key-toggle" type="button" aria-label="Show key" aria-pressed="false">${eyeSvg(false)}</button>
-      </div>
-      <div id="api-key-status" class="key-status idle visible" aria-live="polite">${escapeHtml(keyIdleWhisper(preset))}</div>
+      ${fieldMarkup({ id: "api-key", type: "password", label: `${preset.label} key`, value: getApiKey(settings),
+        placeholder: apiKeyPlaceholder(settings.preset), autocomplete: "off", spellcheck: "false", toggleId: "api-key-toggle", toggleHtml: eyeSvg(false),
+        labelAfterHtml: preset.id === "openrouter" ? `<a class="key-get" href="${OPENROUTER_KEYS_URL}" target="_blank" rel="noreferrer">Get a key →</a>` : "",
+        status: { id: "api-key-status", className: "key-status idle visible", text: keyIdleWhisper(preset) }
+      })}
       <label class="settings-row remember-row" for="session-only">
         <span class="switch-copy"><strong>Remember on this device</strong><small>Turn off on shared computers.</small></span>
         <span class="switch" aria-hidden="true">
@@ -899,21 +876,12 @@ function initSettingsPanel() {
     <details class="settings-advanced">
       <summary>Advanced</summary>
       <div class="settings-advanced-grid">
-        <label class="field" for="answer-model">
-          <span>Answer model</span>
-          <input id="answer-model" value="${escapeAttr(settings.answer_model || "")}">
-          <small class="model-hint" data-model-hint="answer">${escapeHtml(testedModelHint(settings.answer_model || preset.answer_model))}</small>
-        </label>
-        <label class="field" for="author-model">
-          <span>Author model</span>
-          <input id="author-model" value="${escapeAttr(settings.author_model || "")}">
-          <small class="model-hint" data-model-hint="author">${escapeHtml(testedModelHint(settings.author_model || preset.author_model))}</small>
-        </label>
-        <label class="field" for="fetch-proxy-url">
-          <span>Link relay</span>
-          <input id="fetch-proxy-url" value="${escapeAttr(settings.fetch_proxy_url || "")}" placeholder="https://your-relay.example/?url=">
-          <small class="field-hint">When a site blocks in-browser fetching, links open through this relay instead. It sees only the page URL — never your key or your questions.</small>
-        </label>
+        ${fieldMarkup({ id: "answer-model", label: "Answer model", value: settings.answer_model || "",
+          hint: testedModelHint(settings.answer_model || preset.answer_model), hintClass: "model-hint", hintAttrs: { "data-model-hint": "answer" } })}
+        ${fieldMarkup({ id: "author-model", label: "Author model", value: settings.author_model || "",
+          hint: testedModelHint(settings.author_model || preset.author_model), hintClass: "model-hint", hintAttrs: { "data-model-hint": "author" } })}
+        ${fieldMarkup({ id: "fetch-proxy-url", label: "Link relay", value: settings.fetch_proxy_url || "", placeholder: "https://your-relay.example/?url=",
+          hint: "When a site blocks in-browser fetching, links open through this relay instead. It sees only the page URL — never your key or your questions." })}
       </div>
     </details>
   </div>`;
@@ -927,6 +895,8 @@ function wireSettingsPanel(panel) {
 
   wireProviderSelect(panel);
   wireModelPicker(panel);
+  ["provider-base", "local-model", "answer-model", "author-model", "fetch-proxy-url"].forEach((id) => wireField(panel, { id }));
+  wireField(panel, { id: "api-key", toggleId: "api-key-toggle", renderToggle: eyeSvg });
 
   if (keyInput && status) {
     keyInput.addEventListener("input", () => {
@@ -941,7 +911,6 @@ function wireSettingsPanel(panel) {
         commitSettingsKey(panel, { required: true });
       }
     });
-    panel.querySelector("#api-key-toggle")?.addEventListener("click", () => toggleKeyReveal(keyInput, panel.querySelector("#api-key-toggle")));
     panel.querySelector("#session-only")?.addEventListener("change", (event) => {
       applySettingsPatch({ session_only: !event.target.checked });
     });
@@ -1228,14 +1197,6 @@ function eyeSvg(open) {
     : `<svg width="14" height="14" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><path d="M1.9 8S4.2 3.8 8 3.8 14.1 8 14.1 8 11.8 12.2 8 12.2 1.9 8 1.9 8Z"/><circle cx="8" cy="8" r="1.9"/></svg>`;
 }
 
-function toggleKeyReveal(input, button) {
-  const showing = input.type === "text";
-  input.type = showing ? "password" : "text";
-  button.innerHTML = eyeSvg(!showing);
-  button.setAttribute("aria-label", showing ? "Show key" : "Hide key");
-  button.setAttribute("aria-pressed", showing ? "false" : "true");
-}
-
 function refreshCurrentBrain(settings = loadSettings()) {
   if (!currentHost) return;
   const key = getApiKey(settings);
@@ -1292,10 +1253,8 @@ function renderInlineKeyPanel(container, { idPrefix, title = "", note = "", stat
       ${preset.id === "openrouter" ? `<a class="key-get" href="${OPENROUTER_KEYS_URL}" target="_blank" rel="noreferrer">Get a key →</a>` : ""}
     </div>
   </section>`;
-  const input = container.querySelector(`#${idPrefix}-key`);
+  const { input } = wireField(container, { id: `${idPrefix}-key`, toggleId: `${idPrefix}-key-toggle`, renderToggle: eyeSvg });
   const statusEl = container.querySelector(`#${idPrefix}-key-status`);
-  const toggle = container.querySelector(`#${idPrefix}-key-toggle`);
-  toggle.addEventListener("click", () => toggleKeyReveal(input, toggle));
   if (status) setKeyStatus(statusEl, status, "invalid");
   let timer = 0;
   let continued = false;

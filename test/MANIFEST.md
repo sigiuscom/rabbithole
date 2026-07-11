@@ -126,6 +126,9 @@ Scenario references use the Part VI group and shortened ledger wording. `—` me
 | web snapshot export ships an empty style block | C4 | Records that web-exported frozen HTML is unstyled (`snapshot.js` serializes the page's inline `<style>`, which the web build does not emit; the styled export path lives in the canvas host). Phase 7's snapshot boundary fixes this and retires the tripwire. | Data: snapshot export styling |
 | settings native provider select width/arrow/theme | C4 | Explicitly fossilizes the native select Phase 3 replaces. | — |
 | provider switch, local model field, OpenRouter picker | C4 | Pins bespoke controls and provider id `custom` that Phase 3 replaces/migrates. | Chrome: Combobox catalogs (successful catalog only); settings during active stream (no active stream) |
+| settings Field names and described-by connections | C2 | Requires all six settings text/password inputs to expose labels and resolvable hint or status descriptions (`stage10-web-verify.mjs:285-293`, `stage10-web-verify.mjs:454-465`). | Chrome: keyboard-only completion (settings field accessibility) |
+| API key Field live status remains functional | C2 | Preserves the polite live-region contract through validation and its successful asynchronous update (`stage10-web-verify.mjs:466`, `stage10-web-verify.mjs:498-501`). | Data: preference/credential storage (status only) |
+| Field halo and focus-visible-only keyboard ring | C2 | Enforces pointer focus without a keyboard ring, composite field halo emphasis, and keyboard-visible focus (`stage10-web-verify.mjs:467-483`). | Chrome: keyboard-only completion (settings focus treatment) |
 | session-only key opt-out | C2 | Protects credential persistence choice. | Data: preference/credential storage (current behavior only) |
 | settings anchor uses token gap/edge, flips, and repositions after content growth | C2 | Enforces the shared measure-flip-clamp engine and token-derived trigger-relative geometry (`stage10-web-verify.mjs:364-420`). | Chrome: anchored surfaces at viewport edges; content changes after open |
 | nested settings layers close top-first on Escape | C2 | Enforces model-picker-before-settings stack ordering and prevents Escape from leaking to lower canvas shortcuts (`stage10-web-verify.mjs:445-452`). | Chrome: nested transient surfaces; keyboard-only completion |
@@ -259,11 +262,11 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 | Category | Count |
 |---|---:|
 | C1 compatibility contract | 41 |
-| C2 behavioral product contract | 83 |
+| C2 behavioral product contract | 86 |
 | C3 implementation snapshot | 10 |
 | C4 known defect | 8 |
 | C5 design target | 0 |
-| **Total** | **142** |
+| **Total** | **145** |
 
 ## Known-defect fossils
 

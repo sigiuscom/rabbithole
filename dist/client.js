@@ -5007,6 +5007,37 @@ var RabbitholeClient = (() => {
     };
   }
 
+  // src/ui/primitives/popover.js
+  function openPopover(options2) {
+    var trigger = options2.trigger, surface = options2.surface, closed2 = false;
+    trigger == null ? void 0 : trigger.setAttribute("aria-expanded", "true");
+    var position = anchorSurface(trigger, surface, { placement: options2.placement });
+    var trap = activateFocusTrap(options2.trapRoot || surface, {
+      initialFocus: options2.initialFocus,
+      restoreFocus: false
+    });
+    var unregister = registerLayer({
+      element: surface,
+      trigger,
+      onClose: function(reason) {
+        var _a2;
+        (_a2 = options2.onClose) == null ? void 0 : _a2.call(options2, reason);
+      },
+      closeOnEscape: options2.closeOnEscape,
+      closeOnOutsidePointer: options2.closeOnOutsidePointer,
+      restoreFocus: options2.restoreFocus
+    });
+    function close2(settings) {
+      if (closed2) return;
+      closed2 = true;
+      trigger == null ? void 0 : trigger.setAttribute("aria-expanded", "false");
+      trap();
+      position.dispose();
+      unregister(settings);
+    }
+    return { close: close2, dispose: close2, update: position.update };
+  }
+
   // src/ui/branch-surfaces.js
   var branchHooks = {
     post: function() {
@@ -5102,10 +5133,8 @@ var RabbitholeClient = (() => {
     }, 80);
   }
   var shareOpen = false;
-  var shareTrap = null;
   var shareAnchor = null;
-  var sharePosition = null;
-  var shareLayer = null;
+  var sharePopover = null;
   function toggleShare(anchor) {
     if (shareOpen) {
       closeShare();
@@ -5118,32 +5147,22 @@ var RabbitholeClient = (() => {
     document.getElementById("sm-synth").style.display = noAgent ? "none" : "";
     shareAnchor = anchor;
     shareOpen = true;
-    anchor.setAttribute("aria-expanded", "true");
     shareMenu.classList.add("visible");
-    sharePosition = anchorSurface(anchor, shareMenu, { placement: "bottom-end" });
     setSurfaceOrigin(shareMenu, anchor.getBoundingClientRect());
-    if (shareTrap) shareTrap();
-    shareTrap = activateFocusTrap(shareMenu, {
+    sharePopover = openPopover({
+      trigger: anchor,
+      surface: shareMenu,
+      placement: "bottom-end",
       initialFocus: shareMenu.querySelector("button"),
-      restoreFocus: false
+      onClose: closeShare
     });
-    shareLayer = registerLayer({ element: shareMenu, trigger: anchor, onClose: closeShare });
   }
   function closeShare() {
     shareOpen = false;
     shareMenu.classList.remove("visible");
-    if (shareAnchor) shareAnchor.setAttribute("aria-expanded", "false");
-    if (shareTrap) {
-      shareTrap();
-      shareTrap = null;
-    }
-    if (sharePosition) {
-      sharePosition.dispose();
-      sharePosition = null;
-    }
-    if (shareLayer) {
-      shareLayer();
-      shareLayer = null;
+    if (sharePopover) {
+      sharePopover.close();
+      sharePopover = null;
     }
     shareAnchor = null;
   }

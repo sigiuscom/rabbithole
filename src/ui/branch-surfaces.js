@@ -41,9 +41,7 @@ import {
 } from "./reader.js";
 import { mountVisuals } from "./visuals.js";
 import { downloadSnapshot } from "./snapshot.js";
-import { activateFocusTrap } from "./focus-trap.js";
-import { anchorSurface } from "./overlay/anchor.js";
-import { registerLayer } from "./overlay/layer-stack.js";
+import { openPopover } from "./primitives/popover.js";
 
 var branchHooks = {
   post: function(){ return Promise.resolve({ ok: true }); },
@@ -132,7 +130,7 @@ export function hidePeek(){
   // ===========================================================================
   // SHARE — export, copy as Markdown, synthesize
   // ===========================================================================
-  var shareOpen = false, shareTrap = null, shareAnchor = null, sharePosition = null, shareLayer = null;
+  var shareOpen = false, shareAnchor = null, sharePopover = null;
 export function toggleShare(anchor){
     if (shareOpen){ closeShare(); return; }
     // A frozen snapshot can't export (it IS the export) or reach an agent.
@@ -143,24 +141,17 @@ export function toggleShare(anchor){
     document.getElementById("sm-synth").style.display = noAgent ? "none" : "";
     shareAnchor = anchor;
     shareOpen = true;
-    anchor.setAttribute("aria-expanded", "true");
     shareMenu.classList.add("visible");
-    sharePosition = anchorSurface(anchor, shareMenu, { placement: "bottom-end" });
     setSurfaceOrigin(shareMenu, anchor.getBoundingClientRect());
-    if (shareTrap) shareTrap();
-    shareTrap = activateFocusTrap(shareMenu, {
+    sharePopover = openPopover({ trigger: anchor, surface: shareMenu, placement: "bottom-end",
       initialFocus: shareMenu.querySelector("button"),
-      restoreFocus: false
+      onClose: closeShare
     });
-    shareLayer = registerLayer({ element: shareMenu, trigger: anchor, onClose: closeShare });
   }
 export function closeShare(){
     shareOpen = false;
     shareMenu.classList.remove("visible");
-    if (shareAnchor) shareAnchor.setAttribute("aria-expanded", "false");
-    if (shareTrap){ shareTrap(); shareTrap = null; }
-    if (sharePosition){ sharePosition.dispose(); sharePosition = null; }
-    if (shareLayer){ shareLayer(); shareLayer = null; }
+    if (sharePopover){ sharePopover.close(); sharePopover = null; }
     shareAnchor = null;
   }
 
