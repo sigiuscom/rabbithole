@@ -7,7 +7,7 @@ import { ProviderError, normalizeProviderError } from "../src/web/brain/errors.j
 import { adaptBranchGeneration, adaptTextGeneration } from "../src/web/brain/generation-events.js";
 import { OpenAICompatibleBrain, parseOpenAISseEvent, streamOpenAICompatible } from "../src/web/brain/openai-compatible.js";
 import { TitleSentinelParser } from "../src/web/brain/title-sentinel.js";
-import { DirectRabbitholeHost, branchGenerationDocEvents } from "../src/web/transport/direct-host.js";
+import { DirectRabbitholeHost, createHoleFromMarkdown, generationDocEvents } from "../src/web/transport/direct-host.js";
 
 async function collect(iterable) {
   const out = [];
@@ -190,7 +190,7 @@ console.log("ok stage18: GenerationRun accumulation, ordering, late title, empty
 
 const wiringEvents = [{ type: "title", title: "Wired title" }, { type: "text", delta: "one" }, { type: "text", delta: " two" }];
 const wiredRun = new GenerationRun({ id: "wired-run", initialMarkdown: "Start ", fallbackTitle: "Fallback" });
-const wired = await collect(branchGenerationDocEvents(fixtureChunks(wiringEvents), wiredRun, {
+const wired = await collect(generationDocEvents(fixtureChunks(wiringEvents), wiredRun, {
   nodeId: "wired-node",
   progressFields: { base_url: "https://example.test" },
   answeredFields: { parent_id: "root", read: false },
@@ -211,8 +211,8 @@ const mintHost = new DirectRabbitholeHost({
   mintGenerationRunId: () => `attempt-${++minted}`,
 });
 const pendingNode = { id: "branch", status: "pending", markdown: "", title: "Fallback" };
-const oldRun = mintHost.createBranchGenerationRun(pendingNode);
-const retryRun = mintHost.createBranchGenerationRun(pendingNode);
+const oldRun = mintHost.createGenerationRun(pendingNode);
+const retryRun = mintHost.createGenerationRun(pendingNode);
 assert.notEqual(oldRun.id, retryRun.id);
 let guarded = createHoleState({ root_id: "branch", nodes: [pendingNode] });
 guarded = reduceHoleEvent(guarded, oldRun.accept({ type: "text", delta: "old" }, { nodeId: "branch" })).state;
@@ -221,13 +221,83 @@ guarded = reduceHoleEvent(guarded, oldRun.accept({ type: "text", delta: " late" 
 assert.equal(guarded.nodes.get("branch").markdown, "new");
 console.log("ok stage18: retry mints a new run id and reducer rejects an aborted-run straggler");
 
-const emptyWired = await collect(branchGenerationDocEvents(fixtureChunks([]), new GenerationRun({
+const emptyWired = await collect(generationDocEvents(fixtureChunks([]), new GenerationRun({
   id: "empty-wired", fallbackTitle: "Branch fallback",
 }), { nodeId: "empty-branch" }));
 assert.deepEqual(emptyWired, [{
   type: "node_answered", node_id: "empty-branch", title: "Branch fallback", markdown: "",
 }]);
 console.log("ok stage18: browser branch wiring preserves empty-stream completion");
+
+const rootBeforeComplete = (activeRun) => {
+  if (!activeRun.snapshot().markdown.trim()) throw new Error("The provider returned an empty document.");
+  activeRun.accept({ type: "title", title: "Root title" });
+};
+const rootWired = await collect(generationDocEvents(fixtureChunks([
+  { type: "text", delta: "# Root title\n" }, { type: "text", delta: "Body" },
+]), new GenerationRun({ id: "root-run", fallbackTitle: "Question" }), {
+  nodeId: "root", answeredFields: { parent_id: null, read: true }, beforeComplete: rootBeforeComplete,
+}));
+assert.deepEqual(rootWired, [
+  { type: "node_progress", node_id: "root", markdown: "# Root title\n", run: { id: "root-run", seq: 1 } },
+  { type: "node_progress", node_id: "root", markdown: "# Root title\nBody", run: { id: "root-run", seq: 2 } },
+  { type: "node_answered", parent_id: null, read: true, node_id: "root", title: "Root title", markdown: "# Root title\nBody" },
+]);
+for (const events of [[], [{ type: "text", delta: " \n" }]]) {
+  await assert.rejects(() => collect(generationDocEvents(fixtureChunks(events), new GenerationRun({
+    id: "empty-root", fallbackTitle: "Question",
+  }), { nodeId: "root", beforeComplete: rootBeforeComplete })), /provider returned an empty document/);
+}
+console.log("ok stage18: browser root wiring uses GenerationRun and rejects empty or whitespace streams");
+
+const authoringHole = createHoleFromMarkdown({ title: "Source", markdown: "Original source" });
+authoringHole.nodes[0].status = "pending";
+authoringHole.nodes[0].markdown = "";
+const authoringSaves = [];
+let continueAuthoring;
+const authoringGate = new Promise((resolve) => { continueAuthoring = resolve; });
+const authoringHost = new DirectRabbitholeHost({
+  store: { saveHole: async (hole) => authoringSaves.push(structuredClone(hole)) },
+  hole: authoringHole,
+  brain: { async *authorDocument() { yield { type: "text", delta: "# Better\n" }; await authoringGate; yield { type: "text", delta: "Body" }; } },
+  mintGenerationRunId: () => "author-run",
+});
+const progressLengths = [];
+const authorDocumentPromise = authoringHost.authorDocument({ markdown: "Original source" }, {
+  onProgress: (length) => progressLengths.push(length),
+});
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.deepEqual(progressLengths, [9]);
+assert.equal(authoringSaves.length, 0);
+continueAuthoring();
+const authoredHole = await authorDocumentPromise;
+assert.deepEqual(progressLengths, [9, 13]);
+assert.equal(authoredHole.title, "Better");
+assert.equal(authoredHole.nodes[0].markdown, "# Better\nBody");
+assert.equal(authoredHole.nodes[0].status, "answered");
+assert.equal(authoringSaves.length, 1);
+assert.equal(authoringSaves[0].nodes[0].markdown, "# Better\nBody");
+assert.equal(authoringHost.abortByNode.size, 0);
+
+const failedAuthoringSaves = [];
+const failedAuthoringHost = new DirectRabbitholeHost({
+  store: { saveHole: async (hole) => failedAuthoringSaves.push(structuredClone(hole)) },
+  hole: structuredClone(authoringHole),
+  brain: { async *authorDocument() { yield { type: "text", delta: "Partial" }; throw new Error("provider failed"); } },
+});
+await assert.rejects(() => failedAuthoringHost.authorDocument({ markdown: "Original source" }), /provider failed/);
+await new Promise((resolve) => setTimeout(resolve, 450));
+assert.equal(failedAuthoringSaves.length, 0);
+assert.equal(failedAuthoringHost.saveTimer, 0);
+console.log("ok stage18: document authoring saves only once on completion and saves nothing on failure");
+
+const productionGenerationSources = await Promise.all([
+  new URL("../src/web/brain/generation-events.js", import.meta.url),
+  new URL("../src/web/transport/direct-host.js", import.meta.url),
+  new URL("../src/web/app.js", import.meta.url),
+].map((url) => fs.readFile(url, "utf8")));
+assert.equal(productionGenerationSources.join("\n").includes("textDeltaFromGenerationEvent"), false);
+console.log("ok stage18: retired GenerationEvent text-delta seam is absent from production sources");
 
 const appSource = await fs.readFile(new URL("../src/web/app.js", import.meta.url), "utf8");
 assert.match(appSource, /document\.addEventListener\("visibilitychange"[\s\S]*document\.visibilityState === "hidden"[\s\S]*currentHost\?\.flushSave\(\)/);

@@ -375,15 +375,13 @@ async function createFromComposerDocument(markdown, { improveStructure = false }
   const action = () => createFromComposerDocument(markdown, { improveStructure });
   if (improveStructure && !(await ensureKeyForComposerAction(action))) return;
   try {
-    const authored = await maybeAuthorMarkdown({
+    const hole = await maybeAuthorDocument({
       title: "",
       markdown,
       sourceName: "pasted text",
       kind: "paste",
       improveStructure,
     });
-    const hole = createHoleFromMarkdown({ title: "", markdown: authored });
-    await store.saveHole(hole);
     setIngestStatus("");
     await startHole(await store.loadHole(hole.hole_id) || hole);
   } catch (err) {
@@ -453,14 +451,12 @@ async function createFromFile(file) {
   try {
     setIngestStatus("Reading markdown file...", "busy");
     const markdown = await file.text();
-    const authored = await maybeAuthorMarkdown({
+    const hole = await maybeAuthorDocument({
       title: file.name.replace(/\.[^.]+$/, ""),
       markdown,
       sourceName: file.name,
       kind: "file",
     });
-    const hole = createHoleFromMarkdown({ title: "", markdown: authored });
-    await store.saveHole(hole);
     setIngestStatus("");
     await startHole(await store.loadHole(hole.hole_id) || hole);
   } catch (err) {
@@ -500,7 +496,7 @@ async function createFromPdfFile(file) {
   }
 }
 
-async function maybeAuthorMarkdown({
+async function maybeAuthorDocument({
   title = "",
   markdown = "",
   sourceName = "",
@@ -508,25 +504,28 @@ async function maybeAuthorMarkdown({
   baseUrl = "",
   improveStructure = false,
 } = {}) {
-  if (!improveStructure) return markdown;
+  const hole = createHoleFromMarkdown({ title, markdown, baseUrl });
+  if (!improveStructure) {
+    await store.saveHole(hole);
+    return hole;
+  }
   const settings = loadSettings();
   const key = getApiKey(settings);
   setIngestStatus("Improving structure with the author model...", "busy");
   const brain = createBrain(settings, key);
-  const controller = new AbortController();
-  let out = "";
-  for await (const event of brain.authorDocument({
+  const root = hole.nodes[0];
+  root.status = "pending";
+  root.markdown = "";
+  const host = new DirectRabbitholeHost({ store, hole, brain });
+  return host.authorDocument({
     title,
     markdown,
     source_name: sourceName,
     kind,
     base_url: baseUrl,
-  }, controller.signal)) {
-    const chunk = event.type === "text" ? event.delta : ""; // Phase 6 S1 seam; delete in S4.
-    out += chunk;
-    if (out.length) setIngestStatus(`Improving structure... ${out.length.toLocaleString()} characters`, "busy");
-  }
-  return out.trim() || markdown;
+  }, { onProgress: (length) => {
+    if (length) setIngestStatus(`Improving structure... ${length.toLocaleString()} characters`, "busy");
+  } });
 }
 
 async function ensureKeyForComposerAction(action) {

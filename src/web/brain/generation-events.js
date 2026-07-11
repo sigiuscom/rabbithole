@@ -23,12 +23,3 @@ export async function* adaptBranchGeneration(chunks, { fallbackTitle = "Untitled
   if (!titleEmitted) yield { type: "title", title: parser.title };
   if (tail) yield { type: "text", delta: tail };
 }
-
-/** Temporary S1 host seam; delete when S3/S4 consume GenerationEvent directly. */
-export function textDeltaFromGenerationEvent(event, { onTitle } = {}) {
-  if (event?.type === "title") {
-    onTitle?.(event.title);
-    return "";
-  }
-  return event?.type === "text" ? event.delta : "";
-}

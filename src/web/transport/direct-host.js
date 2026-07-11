@@ -2,7 +2,7 @@ import { createHoleState, holeStateToHole, holeStateToHydrationNodes, reduceHole
 import { lineageNodesFromMap, truncate } from "../../core/model.js";
 import { extractAssetRefsFromMarkdown } from "../../core/assets.js";
 import { GenerationRun } from "../../core/generation-run.js";
-import { ProviderError, fallbackTitleForNode, normalizeProviderError, textDeltaFromGenerationEvent } from "../brain/index.js";
+import { ProviderError, fallbackTitleForNode, normalizeProviderError } from "../brain/index.js";
 
 const SAVE_DEBOUNCE_MS = 400;
 const WEB_ROOT_QUESTION = "web_root_question";
@@ -241,32 +241,32 @@ export class DirectRabbitholeHost {
       });
     }
 
-    let markdown = resetMarkdownForRun(node);
-    for await (const event of this.brain.authorExplainer({ question }, controller.signal)) {
+    const brain = this.brain;
+    const run = this.createGenerationRun(node, node.title || "Untitled");
+    const generation = brain.authorExplainer({ question }, controller.signal);
+    for await (const docEvent of generationDocEvents(generation, run, {
+      nodeId,
+      progressFields: { base_url: node.base_url, base_url_source: node.base_url_source },
+      answeredFields: () => rootAnsweredFields(this.state.nodes.get(nodeId)),
+      beforeComplete: (activeRun) => {
+        // Deliberate asymmetry: branches accept an empty stream, but a root
+        // explainer preserves the existing empty/whitespace rejection surface.
+        if (!activeRun.snapshot().markdown.trim()) throw new Error("The provider returned an empty document.");
+        activeRun.accept({
+          type: "title",
+          title: titleFromMarkdown(activeRun.snapshot().markdown) || this.state.nodes.get(nodeId)?.title || "Untitled",
+        });
+      },
+    })) {
       if (controller.signal.aborted || !this.isLivePending(nodeId)) return;
-      const chunk = textDeltaFromGenerationEvent(event);
-      markdown += chunk;
-      this.dispatchProgress(nodeId, markdown, { emit: true });
+      this.dispatch(docEvent);
+      if (docEvent.type === "node_progress") {
+        const current = this.state.nodes.get(nodeId);
+        this.emit({ ...docEvent, markdown: current.markdown });
+        this.scheduleSave();
+      }
     }
-    if (controller.signal.aborted || !this.isLivePending(nodeId)) return;
-    if (!markdown.trim()) throw new Error("The provider returned an empty document.");
-
-    const current = this.state.nodes.get(nodeId);
-    const title = titleFromMarkdown(markdown) || current.title || "Untitled";
-    this.dispatch({
-      type: "node_answered",
-      node_id: current.id,
-      parent_id: null,
-      title,
-      markdown,
-      base_url: current.base_url,
-      base_url_source: current.base_url_source,
-      origin: null,
-      position: current.position,
-      size: current.size,
-      font_scale: current.font_scale,
-      read: true,
-    });
+    const title = this.state.nodes.get(nodeId).title;
     this.dispatch({ type: "hole_title", title });
     this.title = title;
     const finalNode = this.state.nodes.get(nodeId);
@@ -305,11 +305,11 @@ export class DirectRabbitholeHost {
     context.fallbackTitle = fallbackTitle;
     // Each attempt, including a retry, gets a fresh run id. The reducer can
     // therefore reject late progress from the superseded attempt.
-    const run = this.createBranchGenerationRun(node, fallbackTitle);
+    const run = this.createGenerationRun(node, fallbackTitle);
     // Capture the brain at attempt start: provider changes affect only later
     // generations; this in-flight iterator finishes on the old brain.
     const generation = brain.answerBranch(context, controller.signal);
-    for await (const docEvent of branchGenerationDocEvents(generation, run, {
+    for await (const docEvent of generationDocEvents(generation, run, {
       nodeId,
       progressFields: { base_url: node.base_url, base_url_source: node.base_url_source },
       answeredFields: () => branchAnsweredFields(this.state.nodes.get(nodeId)),
@@ -343,12 +343,55 @@ export class DirectRabbitholeHost {
     await this.flushSave();
   }
 
-  createBranchGenerationRun(node, fallbackTitle = fallbackTitleForNode(node)) {
+  createGenerationRun(node, fallbackTitle = fallbackTitleForNode(node)) {
     return new GenerationRun({
       id: this.mintGenerationRunId(),
       initialMarkdown: resetMarkdownForRun(node),
       fallbackTitle,
     });
+  }
+
+  async authorDocument(source, { onProgress = null } = {}) {
+    const nodeId = this.state.root_id;
+    const node = this.state.nodes.get(nodeId);
+    if (!node || !this.brain) throw new Error("Document authoring requires a pending root and brain.");
+    const controller = new AbortController();
+    this.abortByNode.get(nodeId)?.abort();
+    this.abortByNode.set(nodeId, controller);
+    const run = this.createGenerationRun({ ...node, markdown: "" }, node.title || "Untitled");
+    const generation = this.brain.authorDocument(source, controller.signal);
+    try {
+      for await (const docEvent of generationDocEvents(generation, run, {
+        nodeId,
+        progressFields: { base_url: node.base_url, base_url_source: node.base_url_source },
+        answeredFields: () => rootAnsweredFields(this.state.nodes.get(nodeId)),
+        beforeComplete: (activeRun) => {
+          activeRun.accept({ type: "title", title: titleFromMarkdown(activeRun.snapshot().markdown) || node.title || "Untitled" });
+        },
+        complete: (activeRun, context) => ({
+          ...activeRun.complete(context),
+          // Authoring replaces a source rather than answering an existing
+          // document: preserve its historical trim-or-original completion.
+          markdown: activeRun.snapshot().markdown.trim() || String(source.markdown || ""),
+        }),
+      })) {
+        if (controller.signal.aborted || this.disposed) throw new DOMException("Aborted", "AbortError");
+        this.dispatch(docEvent);
+        if (docEvent.type === "node_progress") {
+          onProgress?.(this.state.nodes.get(nodeId).markdown.length);
+        }
+      }
+      this.title = this.state.nodes.get(nodeId).title;
+      this.dispatch({ type: "hole_title", title: this.title });
+      await this.flushSave();
+      return holeStateToHole(this.state);
+    } finally {
+      if (this.saveTimer) {
+        clearTimeout(this.saveTimer);
+        this.saveTimer = 0;
+      }
+      if (this.abortByNode.get(nodeId) === controller) this.abortByNode.delete(nodeId);
+    }
   }
 
   handleAnswerError(nodeId, err, signal) {
@@ -460,13 +503,21 @@ export class DirectRabbitholeHost {
  * Narrow, browser-free branch wiring: GenerationEvent -> GenerationRun -> DocEvent.
  * Errors are intentionally not DocEvents; provider failures remain host/UI flow.
  */
-export async function* branchGenerationDocEvents(generation, run, { nodeId, progressFields = {}, answeredFields = {} }) {
+export async function* generationDocEvents(generation, run, { nodeId, progressFields = {}, answeredFields = {}, beforeComplete = null, complete = null }) {
   for await (const event of generation) {
     const progress = run.accept(event, { nodeId, progressFields });
     if (progress) yield progress;
   }
+  beforeComplete?.(run);
   const fields = typeof answeredFields === "function" ? answeredFields() : answeredFields;
-  yield run.complete({ nodeId, answeredFields: fields });
+  const context = { nodeId, answeredFields: fields };
+  yield complete ? complete(run, context) : run.complete(context);
+}
+
+function rootAnsweredFields(node) {
+  if (!node) return {};
+  return { parent_id: null, base_url: node.base_url, base_url_source: node.base_url_source,
+    origin: null, position: node.position, size: node.size, font_scale: node.font_scale, read: true };
 }
 
 function branchAnsweredFields(node) {
