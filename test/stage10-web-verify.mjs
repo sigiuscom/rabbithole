@@ -483,6 +483,10 @@ async function verifyAskKeyUxAndRail() {
 
   await page.click("#t-settings");
   await page.waitForSelector("#web-settings-popover");
+  await page.waitForFunction(() => {
+    const popover = document.getElementById("web-settings-popover");
+    return popover && !popover.getAnimations({ subtree: true }).some((animation) => animation.playState === "running");
+  }, null, { timeout: 5000 });
   assert.equal(await page.locator("#save-settings, #web-settings-close").count(), 0, "settings should apply live without save or close buttons");
   assert.equal(await page.locator(".settings-section").first().getAttribute("class"), "settings-section provider-section", "provider should be the first settings decision");
   assert.equal(await page.locator("#provider-select").evaluate((select) => select.tagName), "BUTTON", "provider should use the owned Select trigger");
@@ -494,16 +498,7 @@ async function verifyAskKeyUxAndRail() {
   assert.equal(await page.getAttribute("#provider-select", "aria-expanded"), "true");
   assert.deepEqual(await page.locator("#provider-select-listbox [role=option]").allTextContents(), ["OpenRouter", "Local"]);
   assert.deepEqual(await page.locator("#provider-select-listbox [role=option]").evaluateAll((options) => options.map((option) => option.getAttribute("aria-selected"))), ["true", "false"]);
-  await page.waitForFunction(() => {
-    const trigger = document.getElementById("provider-select");
-    const list = document.getElementById("provider-select-listbox");
-    if (!trigger || !list) return false;
-    const token = parseFloat(getComputedStyle(list).getPropertyValue("--surface-gap"));
-    const actual = list.getBoundingClientRect().top - trigger.getBoundingClientRect().bottom;
-    const matches = Number.isFinite(token) && Math.abs(actual - token) <= 1;
-    if (!matches) window.dispatchEvent(new Event("resize"));
-    return matches;
-  }, null, { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const selectGap = await page.evaluate(() => {
     const trigger = document.getElementById("provider-select").getBoundingClientRect();
     const list = document.getElementById("provider-select-listbox");
