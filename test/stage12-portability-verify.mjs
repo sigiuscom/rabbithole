@@ -83,7 +83,7 @@ try {
   await page.waitForSelector("#api-key-status.valid");
   await page.keyboard.press("Escape");
 
-  await page.evaluate(() => window.__rhWebApp.createDocumentForTest(
+  await page.evaluate(() => window.__rabbitholeTest.createDocument(
     "# Author Check\n\nraw notes about a streamed authoring pass",
     { improveStructure: true },
   ));
@@ -102,11 +102,9 @@ try {
   });
 
   const original = await page.evaluate(async () => {
-    const holeId = window.__rhWebApp.currentHoleId();
-    const raw = await window.__rhWebApp.readRawHole(holeId);
-    const assets = await window.__rhWebApp.store.listAssets(holeId);
-    const sizes = {};
-    for (const name of assets) sizes[name] = (await window.__rhWebApp.store.getAsset(holeId, name)).size;
+    const holeId = window.__rabbitholeTest.currentHoleId();
+    const raw = await window.__rabbitholeTest.readStoredHole(holeId);
+    const { names: assets, sizes } = await window.__rabbitholeTest.inspectAssets(holeId);
     return { holeId, raw, assets, sizes };
   });
   assert.deepEqual(original.assets, ["page-001.png"]);
@@ -130,8 +128,9 @@ try {
 
   await ensureRailOpen(page);
   assert.equal(await page.locator(".rail-row", { hasText: "pdf document" }).first().locator(".rail-export").count(), 1);
+  await page.locator(`.rail-row[data-hole="${original.holeId}"]`).hover();
   const homeDownloadPromise = page.waitForEvent("download");
-  await page.evaluate((id) => window.__rhWebApp.exportHoleFromRailForTest(id), original.holeId);
+  await page.locator(`.rail-row[data-hole="${original.holeId}"] .rail-export`).click();
   const homeDownload = await homeDownloadPromise;
   assert.match(homeDownload.suggestedFilename(), /^pdf-document\.rabbithole$/);
 
@@ -147,11 +146,9 @@ try {
   });
 
   const imported = await importPage.evaluate(async () => {
-    const holeId = window.__rhWebApp.currentHoleId();
-    const raw = await window.__rhWebApp.readRawHole(holeId);
-    const assets = await window.__rhWebApp.store.listAssets(holeId);
-    const sizes = {};
-    for (const name of assets) sizes[name] = (await window.__rhWebApp.store.getAsset(holeId, name)).size;
+    const holeId = window.__rabbitholeTest.currentHoleId();
+    const raw = await window.__rabbitholeTest.readStoredHole(holeId);
+    const { names: assets, sizes } = await window.__rabbitholeTest.inspectAssets(holeId);
     return { holeId, raw, assets, sizes };
   });
   assert.deepEqual(projectHole(imported.raw), projectHole(original.raw));
@@ -199,7 +196,7 @@ async function assertShellPolish(page) {
   assert.equal(await page.locator("#answer-model").count(), 1, "advanced settings should retain separate model overrides");
   assert.equal(await page.locator("#fetch-proxy-url").count(), 1, "advanced settings should retain the link relay");
   await page.keyboard.press("Escape");
-  await page.waitForSelector("#web-settings-modal[hidden]", { state: "attached" });
+  await page.waitForSelector("#web-settings-popover", { state: "detached" });
 }
 
 async function waitForCanvasText(page, text) {

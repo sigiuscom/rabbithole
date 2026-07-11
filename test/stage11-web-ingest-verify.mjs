@@ -68,11 +68,9 @@ try {
   assert.deepEqual(externalDuringPdf, [], `PDF ingest made external request(s): ${externalDuringPdf.join(", ")}`);
 
   const pdfState = await page.evaluate(async () => {
-    const holeId = window.__rhWebApp.currentHoleId();
-    const assets = await window.__rhWebApp.store.listAssets(holeId);
-    const sizes = {};
-    for (const name of assets) sizes[name] = (await window.__rhWebApp.store.getAsset(holeId, name)).size;
-    const raw = await window.__rhWebApp.readRawHole(holeId);
+    const holeId = window.__rabbitholeTest.currentHoleId();
+    const { names: assets, sizes } = await window.__rabbitholeTest.inspectAssets(holeId);
+    const raw = await window.__rabbitholeTest.readStoredHole(holeId);
     return { assets, sizes, raw: JSON.stringify(raw) };
   });
   assert.deepEqual(pdfState.assets, ["page-001.png", "page-002.png"]);
@@ -95,7 +93,7 @@ try {
   assert(directArticleCalls >= 1, "direct ar5iv fetch should be attempted before proxy fallback");
   assert(proxyCalls >= 1, "proxy fallback should be used after direct fetch is blocked");
   const urlHole = await page.evaluate(async () => {
-    const raw = await window.__rhWebApp.readRawHole();
+    const raw = await window.__rabbitholeTest.readStoredHole();
     return JSON.stringify(raw);
   });
   assert(urlHole.includes("Proxy fallback article"));

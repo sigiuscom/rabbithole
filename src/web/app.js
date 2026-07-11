@@ -1,28 +1,17 @@
 import { CANVAS_SHELL } from "../core/html/shell.js";
-import { createBrain, providerFor, settingsForProvider, PROVIDERS } from "./brain/index.js";
+import { createBrain, providerFor } from "./brain/index.js";
 import { ensureCanonical, loadSettings, saveSettings } from "./settings/preferences-store.js";
 import { getApiKey } from "./settings/credential-store.js";
+import { createSettingsPopover, apiKeyPlaceholder } from "./settings/settings-popover.js";
 import { installTestSeam } from "./test-seam.js";
 import { IdbStore } from "./store/idb-store.js";
 import { DirectRabbitholeHost, createHoleFromMarkdown, createPendingHoleFromQuestion } from "./transport/direct-host.js";
 import { startRabbithole } from "../ui/entry.js";
 import { activateFocusTrap } from "../ui/focus-trap.js";
-import { openPopover } from "../ui/primitives/popover.js";
 import { fieldMarkup, wireField } from "../ui/primitives/field.js";
-import { selectMarkup, wireSelect } from "../ui/primitives/select.js";
-import { comboboxMarkup, wireCombobox } from "../ui/primitives/combobox.js";
 import { setSnapshotHooks, buildSnapshotHydration, buildSnapshotHtml } from "../ui/snapshot.js";
 import { openUrlToStoredHole } from "./ingest/url.js";
 import { downloadRabbitholeExport, importRabbitholeFile, rabbitholeFilename } from "./portable.js";
-import { testedModelHint } from "./brain/tested-models.js";
-import {
-  loadModelCatalog,
-  searchModels,
-  formatModelPrice,
-  prettyModelId,
-  SUGGESTED_MODEL_IDS,
-  RECOMMENDED_MODEL_ID,
-} from "./brain/model-catalog.js";
 
 const LAST_HOLE_KEY = "rh-last-hole";
 const OPENROUTER_KEYS_URL = "https://openrouter.ai/keys";
@@ -35,14 +24,11 @@ let uiStarted = false;
 let railOpen = false;
 let blankZoom = 1;
 let composerTrap = null;
-let settingsPopover = null;
+let settingsController = null;
 let composerPath = "";
 let pendingComposerAction = null;
 let pendingBranchRetry = null;
 let lastHoleCount = 0;
-let modelCatalogCache = null;
-let settingsKeyToken = 0;
-let providerSelect = null;
 
 ensureCanonical();
 applyInitialWebTheme();
@@ -56,7 +42,6 @@ async function boot() {
   renderShell();
   initAppChrome();
   initComposer();
-  initSettingsModal();
   initGlobalDrops();
 
   const initial = await chooseInitialHole();
@@ -66,7 +51,6 @@ async function boot() {
   } else {
     showBlankCanvas({ openComposer: true });
   }
-  exposeTestApi();
   installTestSeam({
     store,
     currentHoleId: () => currentHoleId,
@@ -130,12 +114,6 @@ function renderShell() {
       </button>
       <p class="blank-start-sub">or drop a PDF or Markdown file anywhere</p>
     </div>
-    <div id="web-settings-modal" class="web-settings-modal" role="dialog" aria-modal="true" aria-label="Model settings" hidden>
-      <div class="web-settings-dialog" tabindex="-1">
-        <div id="settings-inline-key" class="settings-inline-key" hidden></div>
-        <section id="settings-panel" class="settings-panel" aria-label="Model settings"></section>
-      </div>
-    </div>
     <div id="web-toast" class="web-toast" aria-live="polite"></div>`;
   document.getElementById("toolbar")?.insertAdjacentHTML("afterbegin",
     `<span class="toolbar-brand" title="Rabbithole" aria-label="Rabbithole">${bunnyMarkSvg()}</span><span class="sep toolbar-brand-sep"></span>`);
@@ -167,7 +145,16 @@ function initAppChrome() {
   window.addEventListener("resize", syncRailPosition, { passive: true });
   document.getElementById("t-rail")?.addEventListener("click", () => toggleRail());
   document.getElementById("t-new")?.addEventListener("click", () => openComposer({ source: "button" }));
-  document.getElementById("t-settings")?.addEventListener("click", () => openSettingsModal());
+  const settingsTrigger = document.getElementById("t-settings");
+  settingsController = createSettingsPopover({
+    trigger: settingsTrigger,
+    onSettingsChange: refreshCurrentBrain,
+    onClose: () => { pendingBranchRetry = null; },
+    eyeSvg,
+    setKeyStatus,
+    validateKey: validateKeyForPreset,
+  });
+  settingsTrigger?.addEventListener("click", () => settingsController.open());
   document.getElementById("blank-start-new")?.addEventListener("click", () => openComposer({ source: "button" }));
   rail?.addEventListener("click", async (event) => {
     const row = event.target?.closest?.(".rail-row");
@@ -612,7 +599,6 @@ async function startHole(hole, { replace = false } = {}) {
   });
   document.getElementById("r-canvas")?.click();
   await renderRail();
-  exposeTestApi();
   currentHost.startRootAnswer();
 }
 
@@ -763,323 +749,6 @@ function loadRailOpen() {
   return false;
 }
 
-function initSettingsModal() {
-  initSettingsPanel();
-}
-
-function openSettingsModal({ focusKey = false, focusSelector = "" } = {}) {
-  const modal = document.getElementById("web-settings-modal");
-  initSettingsPanel();
-  modal.hidden = false;
-  const trigger = document.getElementById("t-settings");
-  const dialog = modal.querySelector(".web-settings-dialog");
-  const panel = document.getElementById("settings-panel");
-  if (panel?.querySelector("#api-key")?.value.trim()) commitSettingsKey(panel);
-  const explicitFocus = focusSelector ? modal.querySelector(focusSelector) : null;
-  settingsPopover?.close({ restoreFocus: false });
-  settingsPopover = openPopover({ trigger, surface: dialog, trapRoot: modal, placement: "bottom-end",
-    initialFocus: explicitFocus || (focusKey ? modal.querySelector("#api-key") : modal.querySelector(".web-settings-dialog")),
-    onClose: closeSettingsModal,
-  });
-}
-
-function closeSettingsModal() {
-  const modal = document.getElementById("web-settings-modal");
-  modal.hidden = true;
-  const inline = document.getElementById("settings-inline-key");
-  inline.hidden = true;
-  inline.innerHTML = "";
-  pendingBranchRetry = null;
-  if (settingsPopover) { settingsPopover.close(); settingsPopover = null; }
-}
-
-function modelDisplayName(id) {
-  const hit = modelCatalogCache?.find((model) => model.id === id);
-  return hit ? hit.name : prettyModelId(id);
-}
-
-function initSettingsPanel() {
-  const panel = document.getElementById("settings-panel");
-  if (!panel) return;
-  providerSelect?.close({ restoreFocus: false });
-  providerSelect = null;
-  const settings = loadSettings();
-  const preset = providerFor(settings.preset);
-  const currentModel = settings.answer_model || preset.answer_model;
-  const providerOptions = Object.values(PROVIDERS).map((provider) => ({ value: provider.id, label: provider.label }));
-  panel.dataset.preset = preset.id;
-  panel.innerHTML = `<div class="settings-inner">
-    <div class="settings-section provider-section">
-      <div class="settings-row">
-        <span class="settings-label" id="provider-select-label">Provider</span>
-        ${selectMarkup({ id: "provider-select", labelledBy: "provider-select-label", value: preset.id, options: providerOptions,
-          iconHtml: `<svg width="12" height="12" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg>` })}
-      </div>
-    </div>
-    ${preset.id === "custom" ? `<div class="settings-section endpoint-section">${fieldMarkup({
-      id: "provider-base", label: "Endpoint", value: settings.base_url || "", placeholder: "http://localhost:11434/v1",
-      hint: "Use an OpenAI-compatible endpoint. Localhost works directly; remote origins require a self-hosted build."
-    })}</div>` : ""}
-    ${preset.model_source === "catalog" ? `<div class="settings-section model-section">
-      <div class="settings-row">
-        <span class="settings-label" id="model-select-label">Model</span>
-        ${comboboxMarkup({ id: "model-select", valueId: "model-select-name", labelledBy: "model-select-label", value: currentModel, label: modelDisplayName(currentModel), title: currentModel,
-          iconHtml: `<svg width="12" height="12" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg>` })}
-      </div>
-    </div>` : `<div class="settings-section model-section local-model-section">
-      <div class="settings-row">
-        <span class="settings-label" id="local-model-label">Model</span>
-        ${comboboxMarkup({ id: "local-model", labelledBy: "local-model-label", value: currentModel, label: currentModel, title: currentModel,
-          iconHtml: `<svg width="12" height="12" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg>` })}
-      </div>
-      <small class="field-hint">Use the exact name shown by <code>ollama list</code>.</small>
-    </div>`}
-    ${preset.requires_key ? `<div class="settings-section key-section">
-      ${fieldMarkup({ id: "api-key", type: "password", label: `${preset.label} key`, value: getApiKey(settings),
-        placeholder: apiKeyPlaceholder(settings.preset), autocomplete: "off", spellcheck: "false", toggleId: "api-key-toggle", toggleHtml: eyeSvg(false),
-        labelAfterHtml: preset.id === "openrouter" ? `<a class="key-get" href="${OPENROUTER_KEYS_URL}" target="_blank" rel="noreferrer">Get a key →</a>` : "",
-        status: { id: "api-key-status", className: "key-status idle visible", text: keyIdleWhisper(preset) }
-      })}
-      <label class="settings-row remember-row" for="session-only">
-        <span class="switch-copy"><strong>Remember on this device</strong><small>Turn off on shared computers.</small></span>
-        <span class="switch" aria-hidden="true">
-          <input id="session-only" type="checkbox" role="switch" ${settings.session_only === false ? "checked" : ""}>
-          <span class="switch-track"></span>
-        </span>
-      </label>
-    </div>` : ""}
-    <details class="settings-advanced">
-      <summary>Advanced</summary>
-      <div class="settings-advanced-grid">
-        ${fieldMarkup({ id: "answer-model", label: "Answer model", value: settings.answer_model || "",
-          hint: testedModelHint(settings.answer_model || preset.answer_model), hintClass: "model-hint", hintAttrs: { "data-model-hint": "answer" } })}
-        ${fieldMarkup({ id: "author-model", label: "Author model", value: settings.author_model || "",
-          hint: testedModelHint(settings.author_model || preset.author_model), hintClass: "model-hint", hintAttrs: { "data-model-hint": "author" } })}
-        ${fieldMarkup({ id: "fetch-proxy-url", label: "Link relay", value: settings.fetch_proxy_url || "", placeholder: "https://your-relay.example/?url=",
-          hint: "When a site blocks in-browser fetching, links open through this relay instead. It sees only the page URL — never your key or your questions." })}
-      </div>
-    </details>
-  </div>`;
-  wireSettingsPanel(panel);
-}
-
-function wireSettingsPanel(panel) {
-  const keyInput = panel.querySelector("#api-key");
-  const status = panel.querySelector("#api-key-status");
-  let validateTimer = 0;
-
-  wireProviderSelect(panel);
-  wireModelComboboxes(panel);
-  ["provider-base", "answer-model", "author-model", "fetch-proxy-url"].forEach((id) => wireField(panel, { id }));
-  wireField(panel, { id: "api-key", toggleId: "api-key-toggle", renderToggle: eyeSvg });
-
-  if (keyInput && status) {
-    keyInput.addEventListener("input", () => {
-      window.clearTimeout(validateTimer);
-      validateTimer = window.setTimeout(() => commitSettingsKey(panel), 350);
-    });
-    keyInput.addEventListener("paste", () => window.setTimeout(() => commitSettingsKey(panel), 0));
-    keyInput.addEventListener("blur", () => commitSettingsKey(panel));
-    keyInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        commitSettingsKey(panel, { required: true });
-      }
-    });
-    panel.querySelector("#session-only")?.addEventListener("change", (event) => {
-      applySettingsPatch({ session_only: !event.target.checked });
-    });
-  }
-  const liveField = (selector, key) => {
-    panel.querySelector(selector)?.addEventListener("change", (event) => {
-      applySettingsPatch({ [key]: event.target.value.trim() });
-      updateModelHints(panel);
-      syncModelSelectLabel(panel);
-    });
-  };
-  liveField("#provider-base", "base_url");
-  liveField("#answer-model", "answer_model");
-  liveField("#author-model", "author_model");
-  liveField("#fetch-proxy-url", "fetch_proxy_url");
-  panel.querySelector("#answer-model")?.addEventListener("input", () => updateModelHints(panel));
-  panel.querySelector("#author-model")?.addEventListener("input", () => updateModelHints(panel));
-  updateModelHints(panel);
-}
-
-function wireProviderSelect(panel) {
-  providerSelect = wireSelect(panel, {
-    id: "provider-select", labelledBy: "provider-select-label",
-    options: Object.values(PROVIDERS).map((provider) => ({ value: provider.id, label: provider.label })),
-    onChange: (id) => {
-    const current = loadSettings();
-    if (!id || id === current.preset) return;
-    saveSettings({ ...current, api_key: getApiKey(current) });
-    applySettingsPatch(settingsForProvider(id, current));
-    initSettingsPanel();
-    document.getElementById("provider-select")?.focus({ preventScroll: true });
-    },
-  });
-}
-
-function renderCatalogModelRow(model, { current, recommended = false, group = "", itemIndex = -1 } = {}) {
-  const selected = model.id === current;
-  return `${group ? `<div class="model-group-label">${escapeHtml(group)}</div>` : ""}<button type="button" class="model-option${selected ? " selected" : ""}" role="option" aria-selected="${selected}" data-value="${escapeAttr(model.id)}" data-label="${escapeAttr(model.name)}" data-item-index="${itemIndex}" title="${escapeAttr(model.id)}">
-    <span class="model-check" aria-hidden="true">${selected ? `<svg width="12" height="12" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="m3.5 8.5 3 3 6-6.5"/></svg>` : ""}</span>
-    <span class="model-option-name">${escapeHtml(model.name)}</span>
-    ${recommended ? `<span class="model-chip">Recommended</span>` : ""}
-    <span class="model-option-price">${escapeHtml(formatModelPrice(model))}</span>
-  </button>`;
-}
-
-function renderExactModelRow(query) {
-  return `<button type="button" class="model-option model-use-custom" role="option" aria-selected="false" data-value="${escapeAttr(query)}" data-label="${escapeAttr(query)}" data-free-text="true" title="${escapeAttr(query)}">
-    <span class="model-check" aria-hidden="true"></span>
-    <span class="model-option-name">Use “${escapeHtml(query)}”</span>
-    <span class="model-option-price">as-is</span>
-  </button>`;
-}
-
-function wireModelComboboxes(panel) {
-  const searchIcon = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.6" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
-  const after = `<kbd>esc</kbd>`;
-  const commit = (id) => {
-    if (!id) return;
-    applySettingsPatch({ author_model: id, answer_model: id });
-    const answerInput = panel.querySelector("#answer-model");
-    const authorInput = panel.querySelector("#author-model");
-    if (answerInput) answerInput.value = id;
-    if (authorInput) authorInput.value = id;
-    updateModelHints(panel);
-  };
-  wireCombobox(panel, {
-    id: "model-select", valueId: "model-select-name", labelledBy: "model-select-label", placeholder: "Search every model on OpenRouter…",
-    surfaceClassName: "combobox-surface model-combobox-surface popover-surface", listClassName: "combobox-list model-list",
-    searchIconHtml: searchIcon, searchAfterHtml: after, freeText: renderExactModelRow,
-    source: {
-      load: () => loadModelCatalog().then((models) => (modelCatalogCache = models)),
-      filter: (models, query) => {
-        if (query) return searchModels(models, query).map((model, index) => ({ model, itemIndex: index }));
-        const suggested = SUGGESTED_MODEL_IDS.map((id) => models.find((model) => model.id === id)).filter(Boolean);
-        return [
-          ...suggested.map((model, index) => ({ model, itemIndex: models.indexOf(model), group: index === 0 ? "Suggested" : "", recommended: model.id === RECOMMENDED_MODEL_ID })),
-          ...models.map((model, index) => ({ model, itemIndex: index, group: index === 0 && suggested.length ? "All models" : "" })),
-        ];
-      },
-      renderOption: (entry) => renderCatalogModelRow(entry.model, { current: loadSettings().answer_model, ...entry }),
-      loading: () => `<div class="model-note combobox-loading">Loading models…</div>`,
-      empty: (query) => `<div class="model-note combobox-empty">${query ? "No matching models." : "OpenRouter returned no models."}</div>`,
-      error: (retry) => `<div class="model-note combobox-error">Couldn't reach OpenRouter for the model list. ${retry}</div>`,
-    },
-    onChange: commit,
-  });
-
-  const localTrigger = panel.querySelector("#local-model");
-  if (!localTrigger) return;
-  wireCombobox(panel, {
-    id: "local-model", labelledBy: "local-model-label", placeholder: "Search installed Ollama models…",
-    surfaceClassName: "combobox-surface local-model-combobox-surface popover-surface", listClassName: "combobox-list model-list",
-    searchIconHtml: searchIcon, searchAfterHtml: after, freeText: renderExactModelRow,
-    source: {
-      load: async () => {
-        const base = (loadSettings().base_url || "http://localhost:11434/v1").replace(/\/+$/, "");
-        const response = await fetch(`${base}/models`, { headers: { Accept: "application/json" } });
-        if (!response.ok) throw new Error(`Local models returned HTTP ${response.status}.`);
-        const json = await response.json();
-        return (Array.isArray(json?.data) ? json.data : []).filter((model) => model?.id).map((model) => ({ id: String(model.id), name: String(model.name || model.id) }));
-      },
-      filter: (models, query) => searchModels(models, query).map((model, itemIndex) => ({ model, itemIndex })),
-      renderOption: (entry) => renderCatalogModelRow(entry.model, { current: loadSettings().answer_model, itemIndex: entry.itemIndex }),
-      loading: () => `<div class="model-note combobox-loading">Looking for installed models…</div>`,
-      empty: (query) => `<div class="model-note combobox-empty">${query ? "No matching installed models." : "No models are installed yet. Run ollama list to check your local models."}</div>`,
-      error: (retry) => `<div class="model-note combobox-error">Couldn't reach the local model endpoint. ${retry}</div>`,
-    },
-    onChange: commit,
-  });
-}
-
-function syncModelSelectLabel(panel) {
-  const settings = loadSettings();
-  const current = settings.answer_model || providerFor(settings.preset).answer_model;
-  const nameEl = panel.querySelector("#model-select-name");
-  if (nameEl) nameEl.textContent = modelDisplayName(current);
-  const select = panel.querySelector("#model-select");
-  if (select) select.title = current;
-}
-
-function applySettingsPatch(patch) {
-  const current = loadSettings();
-  const merged = { ...current, ...patch };
-  const providerChanged = providerFor(merged.preset).id !== providerFor(current.preset).id;
-  const apiKey = Object.prototype.hasOwnProperty.call(patch, "api_key")
-    ? patch.api_key
-    : getApiKey(providerChanged ? merged : current);
-  saveSettings({ ...merged, api_key: apiKey });
-  refreshCurrentBrain();
-}
-
-async function commitSettingsKey(panel, { required = false } = {}) {
-  const input = panel.querySelector("#api-key");
-  const status = panel.querySelector("#api-key-status");
-  if (!input || !status) return false;
-  const value = input.value.trim();
-  const settings = loadSettings();
-  const preset = providerFor(settings.preset);
-  const token = ++settingsKeyToken;
-
-  if (!value) {
-    if (getApiKey(settings)) {
-      applySettingsPatch({ api_key: "" });
-      setKeyStatus(status, "Key removed.", "hint");
-    } else {
-      setKeyStatus(status, keyIdleWhisper(preset), "idle");
-    }
-    return false;
-  }
-  if (await maybeSwitchProviderFromKey(value, panel, async () => {
-    const freshStatus = document.querySelector("#settings-panel #api-key-status");
-    setKeyStatus(freshStatus, `Saved for ${providerFor(loadSettings().preset).label}.`, "valid");
-  })) return false;
-  const hint = providerKeyHint(value, preset.id);
-  if (hint) {
-    setKeyStatus(status, hint, "hint");
-    if (required) shake(() => input.classList.add("shake-once"));
-    if (preset.id === "openrouter" && !isPlausibleOpenRouterKey(value)) return false;
-  }
-  if (!preset.requires_key || preset.id !== "openrouter") {
-    applySettingsPatch({ api_key: value });
-    if (!hint) setKeyStatus(status, `Saved for ${preset.label}.`, "valid");
-    return true;
-  }
-  if (!isPlausibleOpenRouterKey(value)) {
-    setKeyStatus(status, value.startsWith("sk-or-") ? "That OpenRouter key looks incomplete." : "OpenRouter keys start with sk-or-v1-.", required ? "invalid" : "hint");
-    if (required) shake(() => input.classList.add("shake-once"));
-    return false;
-  }
-  setKeyStatus(status, "Checking with OpenRouter…", "busy");
-  try {
-    const result = await validateOpenRouterKey(value);
-    if (token !== settingsKeyToken) return false;
-    applySettingsPatch({ api_key: value });
-    setKeyStatus(status, openRouterValidMessage(result), "valid");
-    return true;
-  } catch (err) {
-    if (token !== settingsKeyToken) return false;
-    if (err?.status === 401 || err?.status === 403) {
-      setKeyStatus(status, err.message, "invalid");
-      shake(() => input.classList.add("shake-once"));
-      return false;
-    }
-    // OpenRouter unreachable — don't hold the user's key hostage over our check.
-    applySettingsPatch({ api_key: value });
-    setKeyStatus(status, "Saved — couldn't verify right now.", "hint");
-    return true;
-  }
-}
-
-function keyIdleWhisper(preset) {
-  return `Stored only in this browser, sent directly to ${preset.label}.`;
-}
-
 function eyeSvg(open) {
   return open
     ? `<svg width="14" height="14" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><path d="M1.9 8S4.2 3.8 8 3.8 14.1 8 14.1 8 11.8 12.2 8 12.2 1.9 8 1.9 8Z"/><circle cx="8" cy="8" r="1.9"/><path d="m3.2 2.6 9.6 10.8"/></svg>`
@@ -1095,7 +764,8 @@ function refreshCurrentBrain(settings = loadSettings()) {
 function handleBranchAuthRequired({ node, error, retry }) {
   pendingBranchRetry = retry;
   const missingKey = error?.code === "missing_key";
-  const slot = document.getElementById("settings-inline-key");
+  settingsController.open();
+  const slot = settingsController.getInlineKeySlot();
   slot.hidden = false;
   renderInlineKeyPanel(slot, {
     idPrefix: "branch",
@@ -1110,7 +780,7 @@ function handleBranchAuthRequired({ node, error, retry }) {
       showToast({ message: `Retrying "${node?.title || "ask"}".` });
     },
   });
-  openSettingsModal({ focusSelector: "#branch-key" });
+  settingsController.open({ focusSelector: "#branch-key" });
 }
 
 function renderInlineKeyPanel(container, { idPrefix, title = "", note = "", status = "", afterValidated = null } = {}) {
@@ -1155,7 +825,7 @@ function renderInlineKeyPanel(container, { idPrefix, title = "", note = "", stat
       api_key: input.value.trim(),
       session_only: !container.querySelector(`#${idPrefix}-remember`).checked,
     });
-    initSettingsPanel();
+    settingsController.refresh();
     refreshCurrentBrain();
     await afterValidated?.();
   };
@@ -1291,16 +961,6 @@ function shake(onShake) {
   window.setTimeout(() => document.querySelectorAll(".shake-once").forEach((el) => el.classList.remove("shake-once")), 260);
 }
 
-function updateModelHints(panel = document.getElementById("settings-panel")) {
-  if (!panel) return;
-  const answer = panel.querySelector("#answer-model")?.value || "";
-  const author = panel.querySelector("#author-model")?.value || "";
-  const answerHint = panel.querySelector("[data-model-hint='answer']");
-  const authorHint = panel.querySelector("[data-model-hint='author']");
-  if (answerHint) answerHint.textContent = testedModelHint(answer);
-  if (authorHint) authorHint.textContent = testedModelHint(author);
-}
-
 async function buildLiveAssetData(holeId) {
   const out = {};
   for (const name of await store.listAssets(holeId)) {
@@ -1416,13 +1076,6 @@ function blobToDataUrl(blob) {
   });
 }
 
-function apiKeyPlaceholder(presetId) {
-  switch (providerFor(presetId).id) {
-    case "openrouter": return "sk-or-v1-...";
-    default: return "optional";
-  }
-}
-
 function isAuthLikeError(err) {
   return err?.status === 401 ||
     err?.status === 403 ||
@@ -1498,16 +1151,4 @@ function bunnyMarkSvg() {
     <ellipse cx="36" cy="45" rx="17" ry="13.5"></ellipse>
     <circle cx="52.5" cy="49" r="5"></circle>
   </svg>`;
-}
-
-function exposeTestApi() {
-  window.__rhWebApp = {
-    store,
-    exportSnapshotForTest: async () => buildSnapshotHtml(await buildSnapshotHydration()),
-    currentHoleId: () => currentHoleId,
-    readRawHole: (id = currentHoleId) => id ? store.readRawHoleForTest(id) : null,
-    createDocumentForTest: createFromComposerDocument,
-    deleteHoleForTest: deleteHoleFromRail,
-    exportHoleFromRailForTest: exportHoleFromRail,
-  };
 }

@@ -317,7 +317,6 @@ body.blank-dragging #viewport::after {
 }
 
 .composer-modal[hidden],
-.web-settings-modal[hidden],
 .inline-key-slot[hidden],
 .settings-inline-key[hidden],
 .blank-start[hidden],
@@ -607,16 +606,6 @@ body.blank-dragging .composer-card {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 10%, transparent);
   color: var(--fg);
-}
-
-.web-settings-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: block;
-  padding: 0;
-  overflow: hidden;
-  background: transparent;
 }
 
 .web-settings-dialog {

@@ -17,8 +17,8 @@ Object.defineProperty(globalThis, "navigator", {
 const store = assertRabbitholeStore(new IdbStore({ dbName: `rabbithole-stage9-idb-${Date.now()}` }));
 
 await runStoreContract(store, {
-  readRawHole: (holeId) => store.readRawHoleForTest(holeId),
-  writeRawHole: (_holeId, fixture) => store.writeRawHoleForTest(fixture),
+  readRawHole: (holeId) => rawHole("readonly", holeId),
+  writeRawHole: (_holeId, fixture) => rawHole("readwrite", fixture),
   makeDeleteHost: async ({ root, childA, childB }) => {
     const host = new DirectRabbitholeHost({
       store,
@@ -37,5 +37,21 @@ await runStoreContract(store, {
     };
   },
 });
+
+async function rawHole(mode, value) {
+  const db = await store.open();
+  const tx = db.transaction("holes", mode);
+  const request = mode === "readonly" ? tx.objectStore("holes").get(value) : tx.objectStore("holes").put(structuredClone(value));
+  const result = await new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  await new Promise((resolve, reject) => {
+    tx.oncomplete = resolve;
+    tx.onabort = () => reject(tx.error);
+    tx.onerror = () => reject(tx.error);
+  });
+  return mode === "readonly" && result ? structuredClone(result) : result;
+}
 
 console.log("stage9 idb store contract verification passed");

@@ -203,22 +203,6 @@ export class IdbStore {
     return moved.sort();
   }
 
-  async readRawHoleForTest(holeId) {
-    const db = await this.open();
-    const tx = db.transaction(HOLES, "readonly");
-    const raw = await requestToPromise(tx.objectStore(HOLES).get(assertSafeHoleId(holeId)));
-    await txDone(tx);
-    return raw ? cloneJson(raw) : null;
-  }
-
-  async writeRawHoleForTest(hole) {
-    await this.requestPersistenceOnce();
-    const db = await this.open();
-    const tx = db.transaction(HOLES, "readwrite");
-    tx.objectStore(HOLES).put(cloneJson(hole));
-    await txDone(tx);
-  }
-
   async open() {
     if (this.dbPromise) return this.dbPromise;
     this.dbPromise = new Promise((resolve, reject) => {

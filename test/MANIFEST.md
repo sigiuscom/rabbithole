@@ -136,6 +136,10 @@ Scenario references use the Part VI group and shortened ledger wording. `—` me
 | settings anchor uses token gap/edge, flips, and repositions after content growth | C2 | Enforces the shared measure-flip-clamp engine and token-derived trigger-relative geometry (`stage10-web-verify.mjs:364-420`). | Chrome: anchored surfaces at viewport edges; content changes after open |
 | nested settings layers close top-first on Escape | C2 | Enforces Combobox-before-settings stack ordering without a consumer-owned closing seam and prevents Escape from leaking to lower canvas shortcuts. | Chrome: nested transient surfaces; keyboard-only completion |
 | settings Escape/outside-pointer restore trigger focus | C2 | Enforces visible focus continuity for both stack dismissal paths (`stage10-web-verify.mjs:450-458`). | Chrome: focus restoration after transient surfaces |
+| provider switch preserves trigger identity and keyboard focus | C2 | Requires the persistent provider row to retain `document.activeElement` while only conditional endpoint/model/key sections rerender, without product refocusing. | Chrome: settings provider-switch focus continuity |
+| keyboard-only settings round trip | C2 | Opens from the toolbar, reaches provider/model controls, switches provider, commits a model, and Escapes with focus restored to the settings trigger. | Chrome: keyboard-only completion of settings |
+| settings surface lifetime follows the interaction | C2 | Requires both Escape and outside-pointer dismissal to remove the body-appended settings surface from the DOM. | Chrome: transient surface lifetime |
+| settings trigger ARIA follows live surface state | C2 | Requires `aria-expanded` true/false synchronization and an `aria-controls` reference only while the controlled surface exists. | Chrome: settings trigger accessibility |
 | live math/code/show document rendering | C2 | Protects core authoring rendering. | — |
 | share popover token anchor geometry, surface/padding, and focus restore | C2 | Enforces shared-engine trigger-relative placement and stack focus restoration while retaining the shared surface metrics (`stage10-web-verify.mjs:486-526`). | Chrome: anchored surfaces at viewport edges; focus restoration after transient surfaces |
 | selection branch streams and titles | C2 | Protects selection-to-branch generation. | Generation: title never arrives (sentinel success only) |
@@ -265,11 +269,11 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 | Category | Count |
 |---|---:|
 | C1 compatibility contract | 41 |
-| C2 behavioral product contract | 92 |
+| C2 behavioral product contract | 96 |
 | C3 implementation snapshot | 10 |
 | C4 known defect | 5 |
 | C5 design target | 0 |
-| **Total** | **148** |
+| **Total** | **152** |
 
 ## Known-defect fossils
 

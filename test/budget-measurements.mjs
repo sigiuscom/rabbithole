@@ -77,7 +77,7 @@ async function measureSnapshots(browser, baseUrl, samples, onSample) {
     try {
       await page.goto(baseUrl, { waitUntil: "networkidle" });
       await page.setInputFiles("#file-md", path.join(ROOT, "test/fixtures/corpus", fixtureName));
-      await page.waitForFunction(() => window.__rhWebApp?.currentHoleId?.() && document.querySelector(".doc-content"));
+      await page.waitForFunction(() => window.__rabbitholeTest?.currentHoleId?.() && document.querySelector(".doc-content"));
       const stem = fixtureName.startsWith("02-") ? "math" : "assets";
       let html = "";
       for (let i = 0; i < samples; i++) {
@@ -87,7 +87,7 @@ async function measureSnapshots(browser, baseUrl, samples, onSample) {
           const runs = 20;
           const start = performance.now();
           let snapshot = "";
-          for (let run = 0; run < runs; run++) snapshot = await window.__rhWebApp.exportSnapshotForTest();
+          for (let run = 0; run < runs; run++) snapshot = await window.__rabbitholeTest.exportSnapshot();
           return { elapsed: (performance.now() - start) / runs, snapshot };
         });
         html = result.snapshot;
@@ -110,7 +110,7 @@ async function measureColdOpen(browser, baseUrl) {
     await page.waitForFunction(() => {
       const modal = document.getElementById("composer-modal");
       const first = document.getElementById("composer-path-ask");
-      return window.__rhWebApp && modal && !modal.hidden && first && first.offsetParent !== null;
+      return window.__rabbitholeTest && modal && !modal.hidden && first && first.offsetParent !== null;
     });
     return await page.evaluate(() => performance.now());
   } finally {
@@ -145,10 +145,10 @@ async function measureStreamAndSave(browser, baseUrl) {
     const finalText = `token-${STREAM_CHUNKS.length - 1}`;
     await page.locator(".doc-content", { hasText: finalText }).first().waitFor();
     const observed = await page.evaluate(() => ({ ...window.__budget, now: performance.now() }));
-    const holeId = await page.evaluate(() => window.__rhWebApp.currentHoleId());
+    const holeId = await page.evaluate(() => window.__rabbitholeTest.currentHoleId());
     const saveStart = observed.final || observed.now;
     await page.waitForFunction(async ({ id, text }) => {
-      const hole = await window.__rhWebApp.readRawHole(id);
+      const hole = await window.__rabbitholeTest.readStoredHole(id);
       return hole?.nodes?.some((node) => String(node.markdown || "").includes(text));
     }, { id: holeId, text: finalText }, { polling: 20, timeout: 5000 });
     const savedAt = await page.evaluate(() => performance.now());

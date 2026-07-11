@@ -77,7 +77,7 @@ async function verifyLandingAndComposer() {
   assert.match(await page.getAttribute("#file-md", "accept"), /\.md/);
   await page.keyboard.press("Escape");
   await page.waitForSelector("#composer-modal[hidden]", { state: "attached" });
-  const noHoles = await page.evaluate(() => window.__rhWebApp.store.listHoles());
+  const noHoles = await page.evaluate(() => window.__rabbitholeTest.listStoredHoles());
   assert.equal(noHoles.length, 0, "dismissing the composer must not create an Untitled hole");
 
   await page.waitForSelector("#blank-start:not([hidden])");
@@ -99,19 +99,19 @@ async function verifyLandingAndComposer() {
 
   const first = await createDocument(page, "# First hole\n\nEuler identity $e^{i\\pi}+1=0$.");
   await page.reload({ waitUntil: "networkidle" });
-  await page.waitForFunction((id) => window.__rhWebApp?.currentHoleId() === id, first);
+  await page.waitForFunction((id) => window.__rabbitholeTest?.currentHoleId() === id, first);
 
   const second = await createDocument(page, "# Second hole\n\nA second saved document.");
   assert.notEqual(first, second, "creating a second document should open a distinct hole");
   await page.reload({ waitUntil: "networkidle" });
-  await page.waitForFunction((id) => window.__rhWebApp?.currentHoleId() === id, second);
+  await page.waitForFunction((id) => window.__rabbitholeTest?.currentHoleId() === id, second);
 
   await page.goto(`${baseUrl}/?hash-wins=1#hole=${encodeURIComponent(first)}`, { waitUntil: "networkidle" });
-  await page.waitForFunction((id) => window.__rhWebApp?.currentHoleId() === id, first);
+  await page.waitForFunction((id) => window.__rabbitholeTest?.currentHoleId() === id, first);
 
   await page.evaluate((deletedId) => localStorage.setItem("rh-last-hole", deletedId), second);
   await page.goto(`${baseUrl}/?last=second`, { waitUntil: "networkidle" });
-  await page.waitForFunction((id) => window.__rhWebApp?.currentHoleId() === id, second);
+  await page.waitForFunction((id) => window.__rabbitholeTest?.currentHoleId() === id, second);
   await ensureRailOpen(page);
   const railIcon = await page.evaluate(() => ({
     filled: document.getElementById("t-rail").classList.contains("rail-on"),
@@ -120,14 +120,15 @@ async function verifyLandingAndComposer() {
   assert.equal(railIcon.expanded, "true");
   assert.equal(railIcon.filled, true, "rail toggle icon should switch to its filled state while the rail is open");
   assert.equal(await page.locator(`.rail-row[data-hole="${second}"] .rail-delete`).count(), 1);
+  await page.locator(`.rail-row[data-hole="${second}"]`).hover();
   await Promise.all([
     page.waitForNavigation({ waitUntil: "networkidle", timeout: 5000 }).catch(() => null),
-    page.evaluate((id) => window.__rhWebApp.deleteHoleForTest(id), second),
+    page.locator(`.rail-row[data-hole="${second}"] .rail-delete`).click(),
   ]);
-  await page.waitForFunction((id) => window.__rhWebApp?.currentHoleId() === id, first);
+  await page.waitForFunction((id) => window.__rabbitholeTest?.currentHoleId() === id, first);
   await page.evaluate((deletedId) => localStorage.setItem("rh-last-hole", deletedId), second);
   await page.goto(`${baseUrl}/?last=deleted`, { waitUntil: "networkidle" });
-  await page.waitForFunction((id) => window.__rhWebApp?.currentHoleId() === id, first);
+  await page.waitForFunction((id) => window.__rabbitholeTest?.currentHoleId() === id, first);
 
   await context.close();
 }
@@ -264,7 +265,9 @@ async function openFreshSettings(page) {
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.keyboard.press("Escape");
   await page.click("#t-settings");
-  await page.waitForSelector("#web-settings-modal:not([hidden])");
+  await page.waitForSelector("#web-settings-popover");
+  assert.equal(await page.getAttribute("#t-settings", "aria-expanded"), "true", "settings trigger must expose the open popover state");
+  assert.equal(await page.getAttribute("#t-settings", "aria-controls"), "web-settings-popover", "settings trigger must control only the live surface");
 }
 
 async function switchSettingsToLocal(page) {
@@ -316,7 +319,7 @@ async function verifyAskKeyUxAndRail() {
   assert(!/creating (?:the )?(?:root|first)|creating your starting point/i.test(await page.locator("body").innerText()), "root creation status copy should be absent");
   await waitForCanvasText(page, "Attention compares tokens");
   await page.waitForTimeout(1200); // view-state debounce + IndexedDB save debounce
-  const hole = await page.evaluate(async () => window.__rhWebApp.readRawHole());
+  const hole = await page.evaluate(async () => window.__rabbitholeTest.readStoredHole());
   assert.equal(hole.root_id, rootIdWhileLoading, "the loading node should remain the root after streaming completes");
   assert.equal(hole.title, "Attention mechanism");
   assert.equal(!!hole.view_state?.view, false, "composer-created hole must not persist a camera before user interaction");
@@ -389,7 +392,7 @@ async function verifyAskKeyUxAndRail() {
   );
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("rh-web-api-keys") || "{}").openrouter), MOCK_KEY, "remembered key should stay in this browser's provider-key map");
   assert.equal(await page.evaluate(() => localStorage.getItem("rh-web-api-key")), null, "legacy single-key storage should stay retired");
-  const snapshotHtml = await page.evaluate(() => window.__rhWebApp.exportSnapshotForTest());
+  const snapshotHtml = await page.evaluate(() => window.__rabbitholeTest.exportSnapshot());
   assert(!snapshotHtml.includes(MOCK_KEY), "snapshot export must not contain provider key");
   assert(
     snapshotHtml.includes("<style>\n\n</style>"),
@@ -399,7 +402,7 @@ async function verifyAskKeyUxAndRail() {
   assert(!rawJson.includes(MOCK_KEY), "IndexedDB hole record must not contain provider key");
 
   await page.click("#t-settings");
-  await page.waitForSelector("#web-settings-modal:not([hidden])");
+  await page.waitForSelector("#web-settings-popover");
   assert.equal(await page.locator("#save-settings, #web-settings-close").count(), 0, "settings should apply live without save or close buttons");
   assert.equal(await page.locator(".settings-section").first().getAttribute("class"), "settings-section provider-section", "provider should be the first settings decision");
   assert.equal(await page.locator("#provider-select").evaluate((select) => select.tagName), "BUTTON", "provider should use the owned Select trigger");
@@ -421,7 +424,7 @@ async function verifyAskKeyUxAndRail() {
   assert(Math.abs(selectGap.actual - selectGap.token) <= 1, `Select listbox should use the surface gap token, got ${selectGap.actual}px`);
   await page.keyboard.press("Escape");
   assert.equal(await page.locator("#provider-select-listbox").count(), 0, "first Escape should close only the child Select layer");
-  assert.equal(await page.locator("#web-settings-modal").isVisible(), true, "settings should remain after child Escape");
+  assert.equal(await page.locator("#web-settings-popover").isVisible(), true, "settings should remain after child Escape");
   assert.equal(await page.evaluate(() => document.activeElement?.id), "provider-select", "Escape should restore Select trigger focus");
   await page.keyboard.press("ArrowDown");
   await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "option");
@@ -474,7 +477,10 @@ async function verifyAskKeyUxAndRail() {
   assert.equal(pickedSettings.answer_model, "openai/gpt-5", "model pick should apply instantly, no save button");
   assert.equal(pickedSettings.author_model, "openai/gpt-5", "one model choice should drive authoring too");
   await page.keyboard.press("Escape");
-  await page.waitForSelector("#web-settings-modal[hidden]", { state: "attached" });
+  await page.waitForSelector("#web-settings-popover", { state: "detached" });
+  assert.equal(await page.locator("#web-settings-popover").count(), 0, "Escape must remove the settings surface from the DOM");
+  assert.equal(await page.getAttribute("#t-settings", "aria-expanded"), "false", "settings trigger must expose the closed state");
+  assert.equal(await page.getAttribute("#t-settings", "aria-controls"), null, "closed settings must not reference a dead surface");
   assert.equal(await page.evaluate(() => document.activeElement?.id), "t-settings", "settings Escape should restore its trigger after the Select child closes first");
   assert.equal(await page.evaluate(() => document.body.classList.contains("mode-canvas")), true, "nested Escapes must not reach the canvas shortcut");
 
@@ -648,14 +654,16 @@ async function verifyCanvasBranching() {
   await page.waitForSelector("#model-select-listbox");
   await page.keyboard.press("Escape");
   assert.equal(await page.locator("#model-select-listbox").count(), 0, "first Escape should close only the nested model combobox");
-  assert.equal(await page.locator("#web-settings-modal").getAttribute("hidden"), null, "settings should remain open after its child closes");
+  assert.equal(await page.locator("#web-settings-popover").getAttribute("hidden"), null, "settings should remain open after its child closes");
   await page.keyboard.press("Escape");
-  await page.waitForSelector("#web-settings-modal[hidden]", { state: "attached" });
+  await page.waitForSelector("#web-settings-popover", { state: "detached" });
+  assert.equal(await page.locator("#web-settings-popover").count(), 0, "outside pointer must remove the settings surface from the DOM");
+  assert.equal(await page.getAttribute("#t-settings", "aria-expanded"), "false");
   assert.equal(await page.evaluate(() => document.activeElement?.id), "t-settings", "closing settings should restore focus to its trigger");
   await page.click("#t-settings");
-  await page.waitForSelector("#web-settings-modal:not([hidden])");
-  await page.locator("#web-settings-modal").click({ position: { x: 4, y: 300 } });
-  await page.waitForSelector("#web-settings-modal[hidden]", { state: "attached" });
+  await page.waitForSelector("#web-settings-popover");
+  await page.mouse.click(4, 300);
+  await page.waitForSelector("#web-settings-popover", { state: "detached" });
   await page.waitForTimeout(30);
   assert.equal(await page.evaluate(() => document.activeElement?.id), "t-settings", "outside-pointer close should restore settings focus");
   await page.click("#t-settings");
@@ -663,7 +671,7 @@ async function verifyCanvasBranching() {
   await page.press("#api-key", "Enter");
   await page.waitForSelector("#api-key-status.valid");
   await page.keyboard.press("Escape");
-  await page.waitForSelector("#web-settings-modal[hidden]", { state: "attached" });
+  await page.waitForSelector("#web-settings-popover", { state: "detached" });
 
   const markdown = [
     "# Web Smoke",
@@ -741,8 +749,8 @@ async function verifyCanvasBranching() {
 
   await page.waitForTimeout(900);
   await page.reload({ waitUntil: "networkidle" });
-  await page.waitForFunction(() => !!window.__rhWebApp && !!document.querySelector(".node .doc-content[data-node-id]"));
-  const reloadedRaw = await page.evaluate(() => window.__rhWebApp.readRawHole().then((hole) => JSON.stringify(hole)));
+  await page.waitForFunction(() => !!window.__rabbitholeTest && !!document.querySelector(".node .doc-content[data-node-id]"));
+  const reloadedRaw = await page.evaluate(() => window.__rabbitholeTest.readStoredHole().then((hole) => JSON.stringify(hole)));
   assert(reloadedRaw.includes("Euler identity connects rotation"));
   assert(reloadedRaw.includes("Second branch explains the geometric view"));
   assert(!reloadedRaw.includes(MOCK_KEY), "IndexedDB hole record must not contain provider key");
@@ -806,17 +814,17 @@ async function routeProvider(page, { keyStatus, streams, onProviderCall = null, 
 }
 
 async function createDocument(page, markdown) {
-  const previous = await page.evaluate(() => window.__rhWebApp?.currentHoleId?.() || "");
+  const previous = await page.evaluate(() => window.__rabbitholeTest?.currentHoleId?.() || "");
   await Promise.all([
     page.waitForNavigation({ waitUntil: "networkidle", timeout: 2500 }).catch(() => null),
-    page.evaluate((value) => window.__rhWebApp.createDocumentForTest(value), markdown).catch(() => null),
+    page.evaluate((value) => window.__rabbitholeTest.createDocument(value), markdown).catch(() => null),
   ]);
   await page.waitForFunction((oldId) => {
-    const id = window.__rhWebApp?.currentHoleId?.();
+    const id = window.__rabbitholeTest?.currentHoleId?.();
     return id && id !== oldId;
   }, previous);
   await page.waitForSelector(".node .doc-content[data-node-id]");
-  return page.evaluate(() => window.__rhWebApp.currentHoleId());
+  return page.evaluate(() => window.__rabbitholeTest.currentHoleId());
 }
 
 async function ensureRailOpen(page) {
