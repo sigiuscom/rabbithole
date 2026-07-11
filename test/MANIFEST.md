@@ -124,9 +124,10 @@ Scenario references use the Part VI group and shortened ledger wording. `—` me
 | keyboard-opened rail holds focus without a container ring; Escape closes only the rail | C2 | Focus policy: the panel takes focus so keys flow into rows, container emphasis must not impersonate the keyboard ring (was a UA `outline: auto` around the whole panel), and Escape must not fall through to the canvas client's open-the-reader shortcut (it did — the rail handler leaked propagation). | Chrome: keyboard-only completion (rail subset) |
 | credentials stay isolated from holes/snapshots | C1 | Protects the no-export credential contract. | Data: preference/credential storage (isolation only, not migrations) |
 | web snapshot export ships an empty style block | C4 | Records that web-exported frozen HTML is unstyled (`snapshot.js` serializes the page's inline `<style>`, which the web build does not emit; the styled export path lives in the canvas host). Phase 7's snapshot boundary fixes this and retires the tripwire. | Data: snapshot export styling |
-| settings native provider select width/arrow/theme | C4 | Explicitly fossilizes the native select Phase 3 replaces. | — |
-| provider switch, local model field, OpenRouter picker | C4 | Pins bespoke controls and provider id `custom` that Phase 3 replaces/migrates. | Chrome: Combobox catalogs (successful catalog only); settings during active stream (no active stream) |
-| settings Field names and described-by connections | C2 | Requires all six settings text/password inputs to expose labels and resolvable hint or status descriptions (`stage10-web-verify.mjs:285-293`, `stage10-web-verify.mjs:454-465`). | Chrome: keyboard-only completion (settings field accessibility) |
+| owned provider Select ARIA, keyboard, token anchor, nested Escape, and focus restoration | C2 | Pins the single-select trigger/listbox contract, roving option focus, token-derived anchoring, child-before-parent dismissal, and focus continuity (`stage10-web-verify.mjs:262-292`, `stage10-web-verify.mjs:331-334`). | Chrome: anchored transient surfaces; keyboard-only completion; focus restoration |
+| provider switch, local model field, OpenRouter picker | C2 | Preserves live provider persistence and the Local/OpenRouter conditional settings surfaces through the owned Select (`stage10-web-verify.mjs:293-329`). | Chrome: Combobox catalogs (successful catalog only); settings during active stream (no active stream) |
+| inline key-panel eye toggle | C2 | Guards the inline `renderInlineKeyPanel` Field wiring by requiring password/text and `aria-pressed` to change together (`stage10-web-verify.mjs:151-158`). | Chrome: credential entry and accessible state |
+| settings Field names and described-by connections | C2 | Requires all six settings text/password inputs to expose labels and resolvable hint or status descriptions (`stage10-web-verify.mjs:297-305`, `stage10-web-verify.mjs:488-499`). | Chrome: keyboard-only completion (settings field accessibility) |
 | API key Field live status remains functional | C2 | Preserves the polite live-region contract through validation and its successful asynchronous update (`stage10-web-verify.mjs:466`, `stage10-web-verify.mjs:498-501`). | Data: preference/credential storage (status only) |
 | Field halo and focus-visible-only keyboard ring | C2 | Enforces pointer focus without a keyboard ring, composite field halo emphasis, and keyboard-visible focus (`stage10-web-verify.mjs:467-483`). | Chrome: keyboard-only completion (settings focus treatment) |
 | session-only key opt-out | C2 | Protects credential persistence choice. | Data: preference/credential storage (current behavior only) |
@@ -161,7 +162,7 @@ Scenario references use the Part VI group and shortened ledger wording. `—` me
 
 | Case | Category | Rationale | Scenario-ledger entries covered |
 |---|---|---|---|
-| shell/settings polish including native select width | C4 | Repeats the native-select and magic-width fossil targeted by Phase 3. | — |
+| shell/settings polish and owned provider Select switching | C2 | Verifies the portable shell drives provider changes through the owned keyboard Select without pinning native-control geometry (`stage12-portability-verify.mjs:171-202`). | Chrome: keyboard-only completion |
 | improve-structure invokes author stream once | C2 | Protects document authoring generation. | — |
 | PDF-backed `.rabbithole` export shape and credential exclusion | C1 | Protects the portable format and secret isolation. | Data: preference/credential storage (isolation only) |
 | rail export filename | C2 | Protects user-visible download behavior. | — |
@@ -262,17 +263,14 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 | Category | Count |
 |---|---:|
 | C1 compatibility contract | 41 |
-| C2 behavioral product contract | 86 |
+| C2 behavioral product contract | 90 |
 | C3 implementation snapshot | 10 |
-| C4 known defect | 8 |
+| C4 known defect | 5 |
 | C5 design target | 0 |
-| **Total** | **145** |
+| **Total** | **146** |
 
 ## Known-defect fossils
 
-- `stage10-web-verify.mjs:235-260` requires a native `<select>`, measures label-dependent width and label-to-arrow spacing, and checks native option theming. This is the exact Phase 3 native-select fossil.
-- `stage10-web-verify.mjs:261-285` requires the bespoke local text input and OpenRouter picker and persists provider id `custom`; Phase 3 replaces these controls and includes provider-id migration.
-- `stage12-portability-verify.mjs:182-191` independently requires the native provider `<select>` and an exact OpenRouter-label width band.
 - `stage10-web-verify.mjs:179-224` pins rail padding (`12px`, `7px`, `8px`), bottom gap (`14px`), and width (`<=226px`): per-screen magic design values Phase 2 intends to centralize.
 - `stage10-web-verify.mjs:421-442` retains settings surface equality and the optical gear offset; `stage10-web-verify.mjs:486-521` retains share surface equality and exact shell/item padding. Anchoring itself is now a C2 engine contract rather than a bespoke-geometry fossil.
 - No assertion requires settings `innerHTML` rebuilding or focus-hunting. `stage2-verify.mjs:253-271` does rebuild a synthetic content container via `innerHTML`, but its asserted contract is visual mount identity/cache behavior, not that settings/chrome must rebuild. No current case asserts focus restoration after settings close, so the bespoke focus-hunting debt is unprotected rather than fossilized.

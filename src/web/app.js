@@ -10,6 +10,7 @@ import { activateFocusTrap } from "../ui/focus-trap.js";
 import { registerLayer } from "../ui/overlay/layer-stack.js";
 import { openPopover } from "../ui/primitives/popover.js";
 import { fieldMarkup, wireField } from "../ui/primitives/field.js";
+import { selectMarkup, wireSelect } from "../ui/primitives/select.js";
 import { setSnapshotHooks, buildSnapshotHydration, buildSnapshotHtml } from "../ui/snapshot.js";
 import { openUrlToStoredHole } from "./ingest/url.js";
 import { downloadRabbitholeExport, importRabbitholeFile, rabbitholeFilename } from "./portable.js";
@@ -43,6 +44,7 @@ let lastHoleCount = 0;
 let modelCatalogCache = null;
 let closeSettingsPickerFn = null;
 let settingsKeyToken = 0;
+let providerSelect = null;
 
 ensureCanonical();
 applyInitialWebTheme();
@@ -818,21 +820,19 @@ function initSettingsPanel() {
   const panel = document.getElementById("settings-panel");
   if (!panel) return;
   closeSettingsPickerFn = null;
+  providerSelect?.close({ restoreFocus: false });
+  providerSelect = null;
   const settings = loadSettings();
   const preset = providerFor(settings.preset);
   const currentModel = settings.answer_model || preset.answer_model;
-  const providerOptions = Object.values(PROVIDERS).map((provider) =>
-    `<option value="${escapeAttr(provider.id)}" ${provider.id === preset.id ? "selected" : ""}>${escapeHtml(provider.label)}</option>`
-  ).join("");
+  const providerOptions = Object.values(PROVIDERS).map((provider) => ({ value: provider.id, label: provider.label }));
   panel.dataset.preset = preset.id;
   panel.innerHTML = `<div class="settings-inner">
     <div class="settings-section provider-section">
       <div class="settings-row">
-        <label class="settings-label" for="provider-select">Provider</label>
-        <span class="native-select-wrap">
-          <select id="provider-select" aria-label="Provider">${providerOptions}</select>
-          <svg width="12" height="12" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg>
-        </span>
+        <span class="settings-label" id="provider-select-label">Provider</span>
+        ${selectMarkup({ id: "provider-select", labelledBy: "provider-select-label", value: preset.id, options: providerOptions,
+          iconHtml: `<svg width="12" height="12" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg>` })}
       </div>
     </div>
     ${preset.id === "custom" ? `<div class="settings-section endpoint-section">${fieldMarkup({
@@ -953,10 +953,10 @@ function wireSettingsPanel(panel) {
 }
 
 function wireProviderSelect(panel) {
-  const select = panel.querySelector("#provider-select");
-  if (!select) return;
-  select.addEventListener("change", (event) => {
-    const id = event.target.value;
+  providerSelect = wireSelect(panel, {
+    id: "provider-select", labelledBy: "provider-select-label",
+    options: Object.values(PROVIDERS).map((provider) => ({ value: provider.id, label: provider.label })),
+    onChange: (id) => {
     const current = loadSettings();
     if (!id || id === current.preset) return;
     saveSettings({ ...current, api_key: getApiKey(current) });
@@ -964,6 +964,7 @@ function wireProviderSelect(panel) {
     initSettingsPanel();
     warmModelCatalog();
     document.getElementById("provider-select")?.focus({ preventScroll: true });
+    },
   });
 }
 

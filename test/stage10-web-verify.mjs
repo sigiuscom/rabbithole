@@ -149,6 +149,13 @@ async function verifyAskKeyUxAndRail() {
   await page.waitForSelector("#composer-key-panel:not([hidden])");
   assert.equal(await page.inputValue("#composer-input"), "Explain the attention mechanism");
   assert.equal(await page.locator("#composer-key").count(), 1, "ask flow should expose the OpenRouter key input");
+  assert.equal(await page.getAttribute("#composer-key-toggle", "aria-pressed"), "false");
+  await page.click("#composer-key-toggle");
+  assert.equal(await page.getAttribute("#composer-key", "type"), "text", "inline key eye should reveal the key");
+  assert.equal(await page.getAttribute("#composer-key-toggle", "aria-pressed"), "true", "inline key eye should expose its pressed state");
+  await page.click("#composer-key-toggle");
+  assert.equal(await page.getAttribute("#composer-key", "type"), "password", "inline key eye should hide the key again");
+  assert.equal(await page.getAttribute("#composer-key-toggle", "aria-pressed"), "false");
   assert.match(await page.locator("#composer-key-panel").innerText(), /Stored only in this browser/i);
   assert.equal(await page.locator("#composer-model").count(), 0, "first-run key moment should not demand a model decision");
   assert.equal(await page.isChecked("#composer-remember"), true, "remember-on-this-device should default on");
@@ -252,32 +259,37 @@ async function verifyAskKeyUxAndRail() {
   await page.waitForSelector("#web-settings-modal:not([hidden])");
   assert.equal(await page.locator("#save-settings, #web-settings-close").count(), 0, "settings should apply live without save or close buttons");
   assert.equal(await page.locator(".settings-section").first().getAttribute("class"), "settings-section provider-section", "provider should be the first settings decision");
-  assert.equal(await page.locator("#provider-select").evaluate((select) => select.tagName), "SELECT", "two providers should use the platform dropdown");
-  assert.deepEqual(await page.locator("#provider-select option").allTextContents(), ["OpenRouter", "Local"]);
-  await page.selectOption("#provider-select", "custom");
-  const localDropdownDetail = await page.evaluate(() => {
-    const select = document.getElementById("provider-select");
-    const icon = select.closest(".native-select-wrap").querySelector("svg");
-    const selectRect = select.getBoundingClientRect();
-    const iconRect = icon.getBoundingClientRect();
-    const styles = getComputedStyle(select);
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-    context.font = styles.font;
-    const textWidth = context.measureText(select.selectedOptions[0].textContent).width;
-    return {
-      width: selectRect.width,
-      textToArrow: iconRect.left - (selectRect.left + parseFloat(styles.paddingLeft) + textWidth),
-      colorScheme: styles.colorScheme,
-      expectedScheme: document.documentElement.getAttribute("data-theme"),
-      optionBackground: getComputedStyle(select.options[0]).backgroundColor,
-    };
+  assert.equal(await page.locator("#provider-select").evaluate((select) => select.tagName), "BUTTON", "provider should use the owned Select trigger");
+  assert.equal(await page.getAttribute("#provider-select", "aria-haspopup"), "listbox");
+  assert.equal(await page.getAttribute("#provider-select", "aria-expanded"), "false");
+  assert.match(await page.getAttribute("#provider-select", "aria-labelledby"), /provider-select-label/);
+  await page.focus("#provider-select");
+  await page.keyboard.press("Enter");
+  assert.equal(await page.getAttribute("#provider-select", "aria-expanded"), "true");
+  assert.deepEqual(await page.locator("#provider-select-listbox [role=option]").allTextContents(), ["OpenRouter", "Local"]);
+  assert.deepEqual(await page.locator("#provider-select-listbox [role=option]").evaluateAll((options) => options.map((option) => option.getAttribute("aria-selected"))), ["true", "false"]);
+  await page.waitForTimeout(180);
+  const selectGap = await page.evaluate(() => {
+    const trigger = document.getElementById("provider-select").getBoundingClientRect();
+    const list = document.getElementById("provider-select-listbox");
+    const surface = list.getBoundingClientRect();
+    return { actual: surface.top - trigger.bottom, token: parseFloat(getComputedStyle(list).getPropertyValue("--surface-gap")) };
   });
-  assert(localDropdownDetail.width < 90, `Local provider control should size to its label, got ${localDropdownDetail.width}px`);
-  assert(localDropdownDetail.textToArrow >= 3 && localDropdownDetail.textToArrow <= 9,
-    `Local label-to-arrow spacing should stay intentional, got ${localDropdownDetail.textToArrow.toFixed(2)}px`);
-  assert.equal(localDropdownDetail.colorScheme, localDropdownDetail.expectedScheme, "provider menu should follow the active theme");
-  assert.notEqual(localDropdownDetail.optionBackground, "rgba(0, 0, 0, 0)", "provider options should not fall back to a white/transparent system menu");
+  assert(Math.abs(selectGap.actual - selectGap.token) <= 1, `Select listbox should use the surface gap token, got ${selectGap.actual}px`);
+  await page.keyboard.press("Escape");
+  assert.equal(await page.locator("#provider-select-listbox").count(), 0, "first Escape should close only the child Select layer");
+  assert.equal(await page.locator("#web-settings-modal").isVisible(), true, "settings should remain after child Escape");
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "provider-select", "Escape should restore Select trigger focus");
+  await page.keyboard.press("ArrowDown");
+  await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "option");
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent.trim()), "Local", "ArrowDown should open and rove to the next option");
+  await page.keyboard.press("Home");
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent.trim()), "OpenRouter");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  assert.equal(await page.locator("#provider-select-listbox").count(), 0);
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "provider-select", "commit should restore focus to the re-rendered trigger");
+  assert.equal(await page.getAttribute("#provider-select", "data-value"), "custom");
   assert.equal(await page.locator(".endpoint-section #provider-base").count(), 1, "Local should surface its endpoint immediately");
   assert.equal(await page.locator("#api-key").count(), 0, "Local should not show irrelevant credential UI");
   assert.equal(await page.locator("#model-select").count(), 0, "Local should not use the global OpenRouter model picker");
@@ -296,7 +308,11 @@ async function verifyAskKeyUxAndRail() {
   const localSettings = await page.evaluate(() => JSON.parse(localStorage.getItem("rh-web-settings") || "{}"));
   assert.equal(localSettings.answer_model, "deepseek-r1:7b");
   assert.equal(localSettings.author_model, "deepseek-r1:7b");
-  await page.selectOption("#provider-select", "openrouter");
+  await page.focus("#provider-select");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "option");
+  await page.keyboard.press("Home");
+  await page.keyboard.press(" ");
   assert.equal(await page.inputValue("#api-key"), MOCK_KEY, "returning to a provider should restore only that provider's local key");
   await page.click("#model-select");
   await page.waitForSelector(".model-option[data-id='anthropic/claude-sonnet-5'] .model-chip");
@@ -314,6 +330,8 @@ async function verifyAskKeyUxAndRail() {
   assert.equal(pickedSettings.author_model, "openai/gpt-5", "one model choice should drive authoring too");
   await page.keyboard.press("Escape");
   await page.waitForSelector("#web-settings-modal[hidden]", { state: "attached" });
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "t-settings", "settings Escape should restore its trigger after the Select child closes first");
+  assert.equal(await page.evaluate(() => document.body.classList.contains("mode-canvas")), true, "nested Escapes must not reach the canvas shortcut");
 
   await context.close();
 

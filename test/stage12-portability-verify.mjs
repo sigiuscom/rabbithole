@@ -180,15 +180,21 @@ async function assertShellPolish(page) {
   assert.equal(keyLinkCount, 1, "OpenRouter key link should appear exactly once in settings");
   assert.equal(await page.locator("#save-settings, #web-settings-close").count(), 0, "settings should apply live without save or close buttons");
   const providerState = await page.locator("#provider-select").evaluate((select) => ({
-    tag: select.tagName,
-    labels: Array.from(select.options).map((option) => option.textContent),
-    value: select.value,
-    width: select.getBoundingClientRect().width,
+    tag: select.tagName, value: select.dataset.value, expanded: select.getAttribute("aria-expanded"),
   }));
-  assert.equal(providerState.tag, "SELECT");
-  assert.deepEqual(providerState.labels, ["OpenRouter", "Local"]);
+  assert.equal(providerState.tag, "BUTTON");
   assert.equal(providerState.value, "openrouter");
-  assert(providerState.width > 90 && providerState.width < 118, `OpenRouter select should size to its label, got ${providerState.width}`);
+  assert.equal(providerState.expanded, "false");
+  await page.focus("#provider-select");
+  await page.keyboard.press("ArrowDown");
+  await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "option");
+  await page.keyboard.press("Enter");
+  assert.equal(await page.getAttribute("#provider-select", "data-value"), "custom", "provider flow should switch through the owned Select");
+  assert.equal(await page.locator("#provider-base").count(), 1);
+  await page.focus("#provider-select");
+  await page.keyboard.press("ArrowUp");
+  await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "option");
+  await page.keyboard.press("Enter");
   await page.locator(".settings-advanced summary").click();
   assert.equal(await page.locator("#answer-model").count(), 1, "advanced settings should retain separate model overrides");
   assert.equal(await page.locator("#fetch-proxy-url").count(), 1, "advanced settings should retain the link relay");

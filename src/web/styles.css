@@ -716,54 +716,30 @@ body.blank-dragging .composer-card {
   background: color-mix(in srgb, var(--bg) 42%, transparent);
 }
 
-.native-select-wrap {
-  position: relative;
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
+.select-listbox {
+  position: fixed;
+  z-index: var(--layer-popover);
+  min-width: var(--surface-width-menu);
+  padding: var(--panel-padding-inline);
+  border: var(--surface-popover-border);
+  border-radius: var(--surface-popover-radius);
+  background: var(--surface-popover-bg);
+  -webkit-backdrop-filter: var(--surface-popover-blur);
+  backdrop-filter: var(--surface-popover-blur);
+  box-shadow: var(--surface-popover-shadow);
+}
+
+.select-option {
   border-radius: var(--radius-control);
-  margin-right: -5px;
-  transition: background-color var(--duration-fast) var(--ease-standard);
-}
-
-.native-select-wrap:hover,
-.native-select-wrap:focus-within {
-  background: var(--hl);
-}
-
-.native-select-wrap select {
-  width: auto;
-  min-width: 0;
-  field-sizing: content;
-  appearance: none;
-  border: 0;
-  outline: none;
-  background: transparent;
   color: var(--fg-bold);
-  padding: 5px 26px 5px 8px;
+  padding: var(--row-padding-block) var(--share-item-padding-inline);
   font: var(--weight-semibold) var(--text-body)/1.2 var(--font-ui);
   cursor: pointer;
 }
 
-html[data-theme="dark"] .native-select-wrap select {
-  color-scheme: dark;
-}
-
-html[data-theme="light"] .native-select-wrap select {
-  color-scheme: light;
-}
-
-.native-select-wrap option {
-  background: var(--bar-bg);
-  color: var(--fg-bold);
-}
-
-.native-select-wrap svg {
-  position: absolute;
-  right: 8px;
-  color: var(--fg-faint);
-  pointer-events: none;
-}
+.select-option:hover,
+.select-option:focus,
+.select-option[aria-selected="true"] { background: var(--hl); outline: none; }
 
 .model-search-wrap {
   display: flex;
@@ -1307,7 +1283,6 @@ html[data-theme="light"] .native-select-wrap select {
 .key-status .key-switch:focus-visible,
 .blank-start-new:focus-visible,
 .settings-select:focus-visible,
-.native-select-wrap select:focus-visible,
 .model-option:focus-visible,
 .key-get:focus-visible,
 .key-input-wrap button:focus-visible,

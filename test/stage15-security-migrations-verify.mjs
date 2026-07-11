@@ -238,7 +238,7 @@ async function settleKeyCommit(page) {
 }
 
 async function assertPreferenceState(page, fixture) {
-  assert.equal(await page.inputValue("#provider-select"), fixture.selected, `${fixture.name}: provider behavior survives`);
+  assert.equal(await page.getAttribute("#provider-select", "data-value"), fixture.selected, `${fixture.name}: provider behavior survives`);
   const state = await storageState(page);
   assert.equal(await page.getAttribute("html", "data-theme"), fixture.seed.theme, `${fixture.name}: theme survives`);
   assert.equal(state["rh-last-hole"], fixture.seed.last, `${fixture.name}: last-hole preference survives`);
