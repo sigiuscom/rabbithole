@@ -211,11 +211,19 @@ async function verifyPreferenceFixtures() {
     await assertPreferenceState(page, fixture);
     await settleKeyCommit(page);
     assert.deepEqual(await storageState(page), once, `${fixture.name}: migration/load must be idempotent`);
-    const artifact = await page.evaluate(async () => {
+    const projections = await page.evaluate(async () => {
       await window.__rabbitholeTest.createDocument("# Credential-free export");
-      return window.__rabbitholeTest.exportSnapshot();
+      return {
+        portable: await window.__rabbitholeTest.exportPortable(),
+        snapshot: await window.__rabbitholeTest.exportSnapshot(),
+        persisted: await window.__rabbitholeTest.readStoredHole(),
+      };
     });
-    assert(!artifact.includes(SECRET), `${fixture.name}: credentials must never enter exported HTML`);
+    for (const [projection, value] of Object.entries(projections)) {
+      const serialized = typeof value === "string" ? value : JSON.stringify(value);
+      assert(!serialized.includes(SECRET), `${fixture.name}: secret must be absent from ${projection} projection (value=${serialized})`);
+      assert(!serialized.includes("rh-web-settings"), `${fixture.name}: rh-web-settings storage key must be absent from ${projection} projection (value=${serialized})`);
+    }
     await context.close();
   }
 }

@@ -9,6 +9,7 @@ import {
   readerMain,
   view
 } from "./core.js";
+import { flushPendingSaves } from "./transport-status.js";
 
 var snapshotHooks = {
   fetchAssetBinary: null,
@@ -78,6 +79,7 @@ function extractDompurifySource() {
 export async function buildSnapshotProjection() {
   var viewState = snapshotViewState();
   if (typeof snapshotHooks.getSnapshotHole !== "function") throw new Error("Snapshot document is unavailable");
+  await flushPendingSaves();
   var hole = await snapshotHooks.getSnapshotHole();
   return createSnapshotProjection(hole, viewState, await buildAssetData(hole.nodes));
 }

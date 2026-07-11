@@ -78,25 +78,45 @@ export function post(payload){
   // Where-was-I, persisted (debounced) on every meaningful move so a reopen —
   // tomorrow or after a crash — lands exactly here.
   var viewSaveTimer = 0;
+  function currentViewState(){
+    var cur = nodes[currentNodeId];
+    var scroll = (mode === "reader") ? readerMain.scrollTop : ((cur && cur._scrollTop) || 0);
+    var state = { mode: mode, node_id: currentNodeId, scroll: scroll };
+    if (viewAdjusted) state.view = { x: view.x, y: view.y, scale: view.scale };
+    return state;
+  }
 export function scheduleViewSave(){
     if (frozen || closed) return;
     if (viewSaveTimer) clearTimeout(viewSaveTimer);
     viewSaveTimer = setTimeout(function(){
       viewSaveTimer = 0;
       if (closed) return;
-      var cur = nodes[currentNodeId];
-      var scroll = (mode === "reader") ? readerMain.scrollTop : ((cur && cur._scrollTop) || 0);
-      var state = { mode: mode, node_id: currentNodeId, scroll: scroll };
-      if (viewAdjusted) state.view = { x: view.x, y: view.y, scale: view.scale };
-      post({ type: "view_state", state: state });
+      post({ type: "view_state", state: currentViewState() });
     }, 600);
   }
   var saveTimers = {};
 export function persistNode(node){
     if (saveTimers[node.id]) clearTimeout(saveTimers[node.id]);
     saveTimers[node.id] = setTimeout(function(){
+      delete saveTimers[node.id];
       post({ type:"node_update", node_id: node.id, position:{x:node.x,y:node.y}, size:{w:node.w,h:node.h}, collapsed: node.collapsed, font_scale: node.font_scale });
     }, 350);
+  }
+export function flushPendingSaves(){
+    var pending = saveTimers;
+    saveTimers = {};
+    var posts = Object.keys(pending).map(function(id){
+      clearTimeout(pending[id]);
+      var node = nodes[id];
+      if (!node) return Promise.resolve();
+      return post({ type:"node_update", node_id: node.id, position:{x:node.x,y:node.y}, size:{w:node.w,h:node.h}, collapsed: node.collapsed, font_scale: node.font_scale });
+    });
+    if (viewSaveTimer){
+      clearTimeout(viewSaveTimer);
+      viewSaveTimer = 0;
+      posts.push(post({ type: "view_state", state: currentViewState() }));
+    }
+    return Promise.all(posts);
   }
   // One request for a whole-layout change (Tidy) instead of N debounced posts.
 export function persistNodesBulk(list){

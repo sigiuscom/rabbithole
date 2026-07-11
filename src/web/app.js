@@ -12,6 +12,7 @@ import { fieldMarkup, wireField } from "../ui/primitives/field.js";
 import { buttonMarkup } from "../ui/primitives/button.js";
 import { wireNotice } from "../ui/primitives/notice.js";
 import { setSnapshotHooks, buildSnapshotProjection, buildSnapshotHtml } from "../ui/snapshot.js";
+import { flushPendingSaves } from "../ui/transport-status.js";
 import { openUrlToStoredHole } from "./ingest/url.js";
 import { buildRabbitholeExport, downloadRabbitholeExport, importRabbitholeFile, importSnapshotFile, rabbitholeFilename } from "./portable.js";
 
@@ -59,7 +60,11 @@ async function boot() {
     currentHoleId: () => currentHoleId,
     createDocument: createFromComposerDocument,
     exportSnapshot: async () => buildSnapshotHtml(await buildSnapshotProjection()),
-    exportPortable: () => buildRabbitholeExport(store, currentHoleId),
+    exportPortable: async () => {
+      await flushPendingSaves();
+      await currentHost?.flushSave();
+      return buildRabbitholeExport(store, currentHoleId);
+    },
   });
 }
 
@@ -653,6 +658,7 @@ function showBlankCanvas({ openComposer: shouldOpenComposer = false } = {}) {
 }
 
 async function exportCurrentRabbithole() {
+  await flushPendingSaves();
   await currentHost?.flushSave();
   if (!currentHoleId) throw new Error("No open Rabbithole to export.");
   const payload = await downloadRabbitholeExport(store, currentHoleId);

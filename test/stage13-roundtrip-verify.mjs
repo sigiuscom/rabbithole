@@ -3,7 +3,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { FsStore } from "../src/node/fs-store.js";
-import { SNAPSHOT_PAYLOAD_CLOSE, SNAPSHOT_PAYLOAD_OPEN } from "../src/core/portable-import.js";
+import { extractAssetRefsFromMarkdown } from "../src/core/assets.js";
+import { createSnapshotProjection } from "../src/core/snapshot-projection.js";
+import { buildSnapshotHtml } from "../src/core/snapshot-html.js";
+import { binaryToBase64 } from "../src/core/portable-projection.js";
 import { buildRabbitholeExport, importRabbitholeFile, importSnapshotFile } from "../src/web/portable.js";
 
 const corpusDir = new URL("./fixtures/corpus/", import.meta.url);
@@ -29,8 +32,19 @@ function normalized(payload) {
   copy.hole.hole_id = "<hole_id>";
   return copy;
 }
-function snapshotHtml(payload) {
-  return `<!doctype html><html><body>${SNAPSHOT_PAYLOAD_OPEN}${JSON.stringify(payload).replace(/</g, "\\u003c")}${SNAPSHOT_PAYLOAD_CLOSE}</body></html>`;
+async function exporterSnapshot(store, hole) {
+  const referencedSet = new Set();
+  for (const node of hole.nodes) {
+    for (const name of extractAssetRefsFromMarkdown(node.markdown)) referencedSet.add(name);
+  }
+  const referenced = [...referencedSet].sort();
+  const assets = {};
+  for (const name of referenced) assets[name] = await binaryToBase64(await store.getAsset(hole.hole_id, name));
+  const projection = createSnapshotProjection(hole, hole.view_state, assets);
+  return {
+    html: buildSnapshotHtml({ title: hole.title, stylesheetText: "", dompurifySource: "", frozenClientSource: "", snapshotProjection: projection }),
+    referenced,
+  };
 }
 
 // Fixtures 10 and 11 are legacy-era shapes whose import deliberately migrates
@@ -61,8 +75,21 @@ for (const name of fixtureNames) {
   await importRabbitholeFile(third.store, JSON.stringify(exported1));
   const exported3 = await buildRabbitholeExport(third.store, exported1.hole.hole_id);
   assert.deepEqual(normalized(exported3), normalized(exported1), `${name}: export(import(export)) is idempotent under timestamp normalization`);
+
+  selectDir(first.dir);
+  const persisted = await first.store.loadHole(imported1.hole_id);
+  const snapshot = await exporterSnapshot(first.store, persisted);
+  const snapshotStore = await storeAt("snapshot");
+  const snapshotImported = await importSnapshotFile(snapshotStore.store, snapshot.html);
+  const snapshotExport = await buildRabbitholeExport(snapshotStore.store, snapshotImported.hole_id);
+  const expected = structuredClone(exported1);
+  expected.assets = Object.fromEntries(Object.entries(expected.assets).filter(([assetName]) => snapshot.referenced.includes(assetName)));
+  assert.deepEqual(
+    normalized(snapshotExport), normalized(expected),
+    `${name}: portable -> FsStore -> canonical snapshot HTML -> web snapshot import -> portable is a fixed point; referenced assets are byte-exact and unreferenced assets drop at the snapshot hop by design (referenced=${JSON.stringify(snapshot.referenced)}, before=${JSON.stringify(exported1)}, after=${JSON.stringify(snapshotExport)})`
+  );
 }
-console.log(`ok stage13: all ${fixtureNames.length} corpus fixtures are normalized fixed points and export-idempotent`);
+console.log(`ok stage13: all ${fixtureNames.length} corpus fixtures are normalized three-projection fixed points and export-idempotent`);
 
 {
   const text = await fs.readFile(new URL("04-assets-png-svg.rabbithole", corpusDir), "utf8");
@@ -75,7 +102,10 @@ console.log(`ok stage13: all ${fixtureNames.length} corpus fixtures are normaliz
   const after = await buildRabbitholeExport(target.store, collided.hole_id);
   assert.deepEqual(normalized(after), normalized(before), "collision changes identity but preserves content and assets");
 
-  const snapshotImported = await importSnapshotFile(target.store, snapshotHtml(before));
+  selectDir(target.dir);
+  const persisted = await target.store.loadHole(original.hole_id);
+  const snapshot = await exporterSnapshot(target.store, persisted);
+  const snapshotImported = await importSnapshotFile(target.store, snapshot.html);
   assert.equal(snapshotImported.collision, true);
   assert.notEqual(snapshotImported.hole_id, original.hole_id);
   const snapshotFixedPoint = await buildRabbitholeExport(target.store, snapshotImported.hole_id);

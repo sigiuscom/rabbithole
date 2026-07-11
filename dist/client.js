@@ -5377,617 +5377,6 @@ var RabbitholeClient = (() => {
     return '<!DOCTYPE html>\n<html lang="en" data-theme="light">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>' + escapeHtml(title) + "</title>\n<style>\n" + stylesheetText + "\n</style>\n</head>\n<body>\n" + CANVAS_SHELL + "\n" + payloadOpen + serializeForInlineScript(snapshotProjection) + scriptClose + "\n" + scriptOpen + "\n" + dompurifySource + '\n(function(){\n  "use strict";\n' + frozenClientSource + '\n  var payload = document.getElementById("rabbithole-portable");\n  RabbitholeFrozenClient.startPortableSnapshot(JSON.parse(payload.textContent));\n})();\n' + scriptClose + "\n</body>\n</html>";
   }
 
-  // src/ui/snapshot.js
-  var snapshotHooks = {
-    fetchAssetBinary: null,
-    getSnapshotHole: null,
-    getFrozenClientSource: null,
-    getDompurifySource: null,
-    getStylesheetText: null
-  };
-  function setSnapshotHooks(hooks) {
-    snapshotHooks = Object.assign({}, snapshotHooks, hooks || {});
-  }
-  function snapshotViewState() {
-    var cur = nodes[currentNodeId];
-    var scroll = mode === "reader" ? readerMain.scrollTop : cur && cur._scrollTop || 0;
-    return {
-      mode,
-      node_id: currentNodeId,
-      scroll,
-      view: { x: view.x, y: view.y, scale: view.scale }
-    };
-  }
-  function collectAssetNames(snapshotNodes) {
-    var names = {};
-    snapshotNodes.forEach(function(node) {
-      extractAssetRefsFromMarkdown(node.markdown).forEach(function(name) {
-        names[name] = true;
-      });
-    });
-    return Object.keys(names).sort();
-  }
-  async function fetchAssetBinary(name) {
-    if (typeof snapshotHooks.fetchAssetBinary === "function") {
-      try {
-        var hooked = await snapshotHooks.fetchAssetBinary(name);
-        if (hooked) return hooked;
-      } catch (e) {
-      }
-    }
-    try {
-      var slash = String.fromCharCode(47);
-      var res = await fetch(slash + "assets" + slash + name, { cache: "no-store" });
-      if (!res.ok) return new Uint8Array();
-      return await res.blob();
-    } catch (e) {
-      return new Uint8Array();
-    }
-  }
-  async function buildAssetData(snapshotNodes) {
-    var out = {};
-    var names = collectAssetNames(snapshotNodes);
-    for (var i2 = 0; i2 < names.length; i2++) out[names[i2]] = await binaryToBase64(await fetchAssetBinary(names[i2]));
-    return out;
-  }
-  function extractDompurifySource() {
-    if (typeof snapshotHooks.getDompurifySource === "function") {
-      return snapshotHooks.getDompurifySource() || "";
-    }
-    var script2 = document.scripts && document.scripts[0] ? document.scripts[0].textContent || "" : "";
-    var marker = "\n(function(){";
-    var idx = script2.indexOf(marker);
-    return idx === -1 ? "" : script2.slice(0, idx);
-  }
-  async function buildSnapshotProjection() {
-    var viewState = snapshotViewState();
-    if (typeof snapshotHooks.getSnapshotHole !== "function") throw new Error("Snapshot document is unavailable");
-    var hole = await snapshotHooks.getSnapshotHole();
-    return createSnapshotProjection(hole, viewState, await buildAssetData(hole.nodes));
-  }
-  function buildSnapshotHtml2(snapshotProjection) {
-    var title = snapshotProjection && snapshotProjection.hole && snapshotProjection.hole.title || "Rabbithole";
-    var styleText = typeof snapshotHooks.getStylesheetText === "function" ? snapshotHooks.getStylesheetText() : "";
-    if (!styleText) throw new Error("Frozen stylesheet is unavailable");
-    var dompurifySource = extractDompurifySource();
-    var frozenClient = typeof snapshotHooks.getFrozenClientSource === "function" ? snapshotHooks.getFrozenClientSource() : window.__RABBITHOLE_FROZEN_CLIENT__;
-    if (!frozenClient) throw new Error("Frozen client bundle is unavailable");
-    return buildSnapshotHtml({
-      title,
-      stylesheetText: styleText,
-      dompurifySource,
-      frozenClientSource: frozenClient,
-      snapshotProjection
-    });
-  }
-  function exportFilename(title) {
-    var slug = String(title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
-    return "rabbithole-" + (slug || "export") + ".html";
-  }
-  async function downloadSnapshot() {
-    var snapshotProjection = await buildSnapshotProjection();
-    var html2 = buildSnapshotHtml2(snapshotProjection);
-    var blob = new Blob([html2], { type: "text/html;charset=utf-8" });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url;
-    a.download = exportFilename(snapshotProjection.hole.title);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function() {
-      URL.revokeObjectURL(url);
-    }, 3e4);
-    return html2;
-  }
-
-  // src/ui/focus-trap.js
-  var FOCUSABLE2 = [
-    "a[href]",
-    "button:not([disabled])",
-    "textarea:not([disabled])",
-    "input:not([disabled])",
-    "select:not([disabled])",
-    "[tabindex]:not([tabindex='-1'])"
-  ].join(",");
-  function activateFocusTrap(root, options2) {
-    if (!root) return function() {
-    };
-    options2 = options2 || {};
-    var previous = document.activeElement;
-    if (!root.hasAttribute("tabindex")) root.setAttribute("tabindex", "-1");
-    function focusables() {
-      var all = root.querySelectorAll ? Array.prototype.slice.call(root.querySelectorAll(FOCUSABLE2)) : [];
-      return all.filter(function(el) {
-        return el.offsetParent !== null || el === document.activeElement || el === options2.initialFocus;
-      });
-    }
-    function focusInitial() {
-      var target = options2.initialFocus || focusables()[0] || root;
-      try {
-        target.focus({ preventScroll: true });
-      } catch (e) {
-        try {
-          target.focus();
-        } catch (_e) {
-        }
-      }
-    }
-    function onKeydown2(e) {
-      if (e.key === "Escape" && typeof options2.onEscape === "function") {
-        e.preventDefault();
-        e.stopPropagation();
-        options2.onEscape(e);
-        return;
-      }
-      if (e.key !== "Tab") return;
-      var items = focusables();
-      if (!items.length) {
-        e.preventDefault();
-        root.focus();
-        return;
-      }
-      var first = items[0];
-      var last = items[items.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
-    document.addEventListener("keydown", onKeydown2, true);
-    setTimeout(focusInitial, 0);
-    return function deactivateFocusTrap() {
-      document.removeEventListener("keydown", onKeydown2, true);
-      if (options2.restoreFocus !== false && previous && previous.focus) {
-        try {
-          previous.focus({ preventScroll: true });
-        } catch (e) {
-          try {
-            previous.focus();
-          } catch (_e) {
-          }
-        }
-      }
-    };
-  }
-
-  // src/ui/primitives/popover.js
-  function openPopover(options2) {
-    var trigger = options2.trigger, surface = options2.surface, closed2 = false;
-    trigger == null ? void 0 : trigger.setAttribute("aria-expanded", "true");
-    var position = anchorSurface(trigger, surface, { placement: options2.placement });
-    var trap = activateFocusTrap(options2.trapRoot || surface, {
-      initialFocus: options2.initialFocus,
-      restoreFocus: false
-    });
-    var unregister = registerLayer({
-      element: surface,
-      trigger,
-      onClose: function(reason) {
-        var _a2;
-        (_a2 = options2.onClose) == null ? void 0 : _a2.call(options2, reason);
-      },
-      closeOnEscape: options2.closeOnEscape,
-      closeOnOutsidePointer: options2.closeOnOutsidePointer,
-      restoreFocus: options2.restoreFocus
-    });
-    function close2(settings) {
-      if (closed2) return;
-      closed2 = true;
-      trigger == null ? void 0 : trigger.setAttribute("aria-expanded", "false");
-      trap();
-      position.dispose();
-      unregister(settings);
-    }
-    return { close: close2, dispose: close2, update: position.update };
-  }
-
-  // src/ui/branch-surfaces.js
-  var branchHooks = {
-    post: function() {
-      return Promise.resolve({ ok: true });
-    },
-    exportPortable: null
-  };
-  function registerBranchHooks(hooks) {
-    Object.assign(branchHooks, hooks || {});
-  }
-  var peekTimer = 0;
-  var peekFor = null;
-  var peekPosition = null;
-  var peekLayer = null;
-  function initBranchSurfaces() {
-    readerMain.addEventListener("mouseover", onReaderMarkMouseover);
-    readerMain.addEventListener("mouseout", onReaderMarkMouseout);
-    world.addEventListener("mouseover", onReaderMarkMouseover);
-    world.addEventListener("mouseout", onReaderMarkMouseout);
-    readerMain.addEventListener("focusin", onMarkFocusin);
-    readerMain.addEventListener("focusout", onMarkFocusout);
-    world.addEventListener("focusin", onMarkFocusin);
-    world.addEventListener("focusout", onMarkFocusout);
-    peekEl.addEventListener("mouseleave", function() {
-      hidePeek();
-    });
-    peekEl.addEventListener("click", function() {
-      var kid = peekFor && nodes[peekFor];
-      hidePeek();
-      if (kid) openNode(kid.id);
-    });
-    document.getElementById("r-share").addEventListener("click", function(e) {
-      e.stopPropagation();
-      toggleShare(e.currentTarget, e.detail === 0);
-    });
-    document.getElementById("t-share").addEventListener("click", function(e) {
-      e.stopPropagation();
-      toggleShare(e.currentTarget, e.detail === 0);
-    });
-    shareMenu.addEventListener("keydown", onShareMenuKeydown);
-    document.getElementById("sm-doc").addEventListener("click", onCopyDoc);
-    document.getElementById("sm-trail").addEventListener("click", onCopyTrail);
-    document.getElementById("sm-export").addEventListener("click", onExportSnapshot);
-    document.getElementById("sm-portable").addEventListener("click", onExportPortable);
-    document.getElementById("sm-synth").addEventListener("click", function(e) {
-      closeShare();
-      synthesize(motionSourceFromEvent(e));
-    });
-    document.getElementById("cf-keep").addEventListener("click", hideConfirm);
-    document.getElementById("cf-remove").addEventListener("click", function() {
-      var node = confirmFor && nodes[confirmFor];
-      hideConfirm();
-      if (node) deleteBranch(node);
-    });
-  }
-  function hidePeek() {
-    if (peekTimer) {
-      clearTimeout(peekTimer);
-      peekTimer = 0;
-    }
-    if (peekPosition) {
-      peekPosition.dispose();
-      peekPosition = null;
-    }
-    if (peekLayer) {
-      peekLayer({ restoreFocus: false });
-      peekLayer = null;
-    }
-    peekFor = null;
-    peekEl.classList.remove("visible");
-    peekEl.setAttribute("aria-hidden", "true");
-  }
-  function showPeek(mark) {
-    var kid = nodes[mark.dataset.child];
-    if (!kid || kid.status !== "answered") return;
-    hidePeek();
-    peekFor = kid.id;
-    peekEl.querySelector("[data-peek-unread]").hidden = !isUnread(kid);
-    peekEl.querySelector("[data-peek-title]").textContent = kid.title || "Untitled";
-    var badge = peekEl.querySelector("[data-peek-badge]");
-    var badgeText = kid.origin && kid.origin.synthesis ? "\u2726 Synthesis" : kid.origin && kid.origin.lens ? lensLabel2(kid.origin.lens) : "";
-    badge.textContent = badgeText;
-    badge.hidden = !badgeText;
-    var peekBody = peekEl.querySelector("[data-peek-body]");
-    var fragment = document.createRange().createContextualFragment(kid.html || "");
-    peekBody.replaceChildren(fragment);
-    if (typeof mountVisuals === "function") {
-      mountVisuals(peekBody, "peek:" + kid.id);
-    }
-    peekEl.classList.add("visible");
-    peekEl.setAttribute("aria-hidden", "false");
-    setSurfaceOrigin(peekEl, mark.getBoundingClientRect());
-    peekPosition = anchorSurface(mark, peekEl, { placement: "bottom-start" });
-    peekLayer = registerLayer({
-      element: peekEl,
-      trigger: mark,
-      restoreFocus: false,
-      closeOnOutsidePointer: false,
-      onClose: hidePeek
-    });
-  }
-  function onReaderMarkMouseover(e) {
-    var m = e.target.closest && e.target.closest("mark[data-child]");
-    if (!m) return;
-    var kid = nodes[m.dataset.child];
-    if (!kid || kid.status !== "answered") return;
-    if (peekTimer) clearTimeout(peekTimer);
-    peekTimer = setTimeout(function() {
-      peekTimer = 0;
-      showPeek(m);
-    }, 220);
-  }
-  function onReaderMarkMouseout(e) {
-    var m = e.target.closest && e.target.closest("mark[data-child]");
-    if (!m) return;
-    if (peekTimer) {
-      clearTimeout(peekTimer);
-      peekTimer = 0;
-    }
-    setTimeout(function() {
-      if (!peekEl.matches(":hover") && !readerMain.querySelector("mark[data-child]:hover")) hidePeek();
-    }, 80);
-  }
-  function onMarkFocusin(e) {
-    var m = e.target.closest && e.target.closest("mark[data-child]");
-    if (!m) return;
-    var kid = nodes[m.dataset.child];
-    if (!kid || kid.status !== "answered") return;
-    if (peekTimer) clearTimeout(peekTimer);
-    peekTimer = setTimeout(function() {
-      peekTimer = 0;
-      if (document.activeElement === m) showPeek(m);
-    }, 220);
-  }
-  function onMarkFocusout(e) {
-    var m = e.target.closest && e.target.closest("mark[data-child]");
-    if (!m) return;
-    if (peekTimer) {
-      clearTimeout(peekTimer);
-      peekTimer = 0;
-    }
-    setTimeout(function() {
-      if (!peekEl.matches(":hover") && document.activeElement !== m) hidePeek();
-    }, 0);
-  }
-  var shareOpen = false;
-  var shareAnchor = null;
-  var sharePopover = null;
-  function visibleShareItems() {
-    return Array.prototype.slice.call(shareMenu.querySelectorAll('[role="menuitem"]')).filter(function(item) {
-      return item.style.display !== "none";
-    });
-  }
-  function focusShareItem(item) {
-    visibleShareItems().forEach(function(candidate) {
-      candidate.tabIndex = candidate === item ? 0 : -1;
-    });
-    if (item) item.focus();
-  }
-  function onShareMenuKeydown(e) {
-    var items = visibleShareItems();
-    if (!items.length) return;
-    var index = items.indexOf(document.activeElement), target = null;
-    if (e.key === "ArrowDown") target = items[(index + 1 + items.length) % items.length];
-    else if (e.key === "ArrowUp") target = items[(index - 1 + items.length) % items.length];
-    else if (e.key === "Home") target = items[0];
-    else if (e.key === "End") target = items[items.length - 1];
-    else if (e.key === "Enter" || e.key === " ") {
-      if (index < 0) return;
-      e.preventDefault();
-      items[index].click();
-      return;
-    } else if (e.key === "Tab") {
-      closeShare();
-      return;
-    } else return;
-    e.preventDefault();
-    focusShareItem(target);
-  }
-  function toggleShare(anchor, openedByKeyboard) {
-    if (shareOpen) {
-      closeShare();
-      return;
-    }
-    var noAgent = frozen || closed;
-    document.getElementById("sm-export").style.display = frozen ? "none" : "";
-    document.getElementById("sm-portable").style.display = !frozen && typeof branchHooks.exportPortable === "function" ? "" : "none";
-    document.getElementById("sm-sep2").style.display = noAgent ? "none" : "";
-    document.getElementById("sm-synth").style.display = noAgent ? "none" : "";
-    var items = visibleShareItems();
-    items.forEach(function(item, index) {
-      item.tabIndex = index === 0 ? 0 : -1;
-    });
-    shareAnchor = anchor;
-    shareOpen = true;
-    shareMenu.classList.add("visible");
-    setSurfaceOrigin(shareMenu, anchor.getBoundingClientRect());
-    sharePopover = openPopover({
-      trigger: anchor,
-      surface: shareMenu,
-      placement: "bottom-end",
-      initialFocus: openedByKeyboard ? items[0] : null,
-      onClose: closeShare
-    });
-  }
-  function closeShare() {
-    shareOpen = false;
-    shareMenu.classList.remove("visible");
-    if (sharePopover) {
-      sharePopover.close();
-      sharePopover = null;
-    }
-    shareAnchor = null;
-  }
-  function copyText(text2, okMsg) {
-    function done() {
-      flashHint(okMsg);
-    }
-    function legacy() {
-      var previousFocus = document.activeElement;
-      var ta = document.createElement("textarea");
-      ta.value = text2;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand("copy");
-      } catch (err) {
-      }
-      document.body.removeChild(ta);
-      if (previousFocus && previousFocus.isConnected) {
-        try {
-          previousFocus.focus();
-        } catch (err) {
-        }
-      }
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text2).then(done, function() {
-        legacy();
-        done();
-      });
-    } else {
-      legacy();
-      done();
-    }
-  }
-  function originLine(n) {
-    if (!n.origin) return "";
-    if (n.origin.synthesis) return "> \u2726 Synthesis of the whole Rabbithole\n\n";
-    var ask2 = n.origin.lens ? lensLabel2(n.origin.lens) : n.origin.question || "";
-    if (n.origin.selected_text) return "> Asked about: \u201C" + n.origin.selected_text + "\u201D" + (ask2 ? " \u2014 " + ask2 : "") + "\n\n";
-    return ask2 ? "> Follow-up \u2014 " + ask2 + "\n\n" : "";
-  }
-  function docMarkdown(n, depth) {
-    var h = "#";
-    for (var i2 = 0; i2 < Math.min(depth, 3); i2++) h += "#";
-    var body = (n.md || "").trim() || "_(still being written)_";
-    return h + " " + (n.title || "Untitled") + "\n\n" + originLine(n) + body + "\n";
-  }
-  function trailMarkdown(id) {
-    var path2 = lineageNodes(id), parts = [];
-    for (var i2 = 0; i2 < path2.length; i2++) parts.push(docMarkdown(path2[i2], i2));
-    return parts.join("\n---\n\n");
-  }
-  function onCopyDoc() {
-    closeShare();
-    var n = nodes[currentNodeId];
-    if (!n) return;
-    copyText(docMarkdown(n, 0), "Copied \u201C" + truncate2(n.title || "Untitled", 40) + "\u201D as Markdown");
-  }
-  function onCopyTrail() {
-    closeShare();
-    var path2 = lineageNodes(currentNodeId);
-    copyText(trailMarkdown(currentNodeId), path2.length === 1 ? "Copied this document as Markdown" : "Copied the trail \u2014 " + path2.length + " documents");
-  }
-  function onExportSnapshot() {
-    closeShare();
-    flashHint("Preparing snapshot...");
-    downloadSnapshot().then(function() {
-      flashHint("Snapshot downloading \u2014 a single file that opens anywhere.");
-    }, function() {
-      flashHint("Couldn't prepare the snapshot.");
-    });
-  }
-  function onExportPortable() {
-    closeShare();
-    if (typeof branchHooks.exportPortable !== "function") {
-      flashHint("Rabbithole export is only available in the web app.");
-      return;
-    }
-    flashHint("Preparing Rabbithole export...");
-    Promise.resolve().then(function() {
-      return branchHooks.exportPortable();
-    }).then(function(result) {
-      var name = result && result.filename ? " " + result.filename : "";
-      flashHint("Rabbithole export downloading." + name);
-    }, function() {
-      flashHint("Couldn't prepare the Rabbithole export.");
-    });
-  }
-  function synthesize(source2) {
-    if (closed) {
-      flashHint("Session ended \u2014 reopen this Rabbithole from your terminal first.");
-      return;
-    }
-    var root = nodes[rootId];
-    if (!root) return;
-    for (var k in nodes) {
-      var n = nodes[k];
-      if (n.status === "pending" && n.origin && n.origin.synthesis) {
-        flashHint("A synthesis is already being written\u2026");
-        goToNode(n, source2);
-        return;
-      }
-    }
-    var q = "Step back and write the synthesis of this whole Rabbithole so far: the key ideas we explored, how they connect, and the takeaways worth keeping. Make it a standalone summary of the journey.";
-    var kid = sendFollowup(root, q, null, true);
-    if (mode === "canvas") revealNode(kid, source2);
-    flashHint("\u2726 Synthesizing this journey \u2014 it will branch from where this Rabbithole began.");
-  }
-  var confirmFor = null;
-  var confirmPopover = null;
-  function confirmDelete(node, anchor) {
-    if (closed) {
-      flashHint(frozen ? "This is a read-only snapshot." : "Session ended \u2014 changes can't be saved anymore.");
-      return;
-    }
-    var subCount = countSubtree(node.id) - 1;
-    document.getElementById("cf-msg").textContent = subCount > 0 ? "Remove this branch and " + subCount + " inside it?" : "Remove this branch?";
-    hideConfirm({ restoreFocus: false });
-    confirmFor = node.id;
-    confirmEl.classList.add("visible");
-    setSurfaceOrigin(confirmEl, anchor.getBoundingClientRect());
-    confirmPopover = openPopover({
-      trigger: anchor,
-      surface: confirmEl,
-      placement: "bottom-end",
-      initialFocus: document.getElementById("cf-keep"),
-      onClose: hideConfirm
-    });
-  }
-  function hideConfirm(settings) {
-    confirmFor = null;
-    confirmEl.classList.remove("visible");
-    if (confirmPopover) {
-      var popover = confirmPopover;
-      confirmPopover = null;
-      popover.close(settings);
-    }
-  }
-  function countSubtree(id) {
-    var c2 = 1;
-    childrenOf(id).forEach(function(k) {
-      c2 += countSubtree(k.id);
-    });
-    return c2;
-  }
-  function collectSubtree(id, out) {
-    out.push(id);
-    childrenOf(id).forEach(function(k) {
-      collectSubtree(k.id, out);
-    });
-    return out;
-  }
-  function deleteBranch(node) {
-    var title = node.title || "Untitled";
-    var ids = collectSubtree(node.id, []);
-    branchHooks.post({ type: "delete_node", node_id: node.id });
-    removeNodesLocal(ids, node.parent_id);
-    flashHint(ids.length > 1 ? "Removed \u201C" + truncate2(title, 40) + "\u201D and " + (ids.length - 1) + " inside it" : "Removed \u201C" + truncate2(title, 40) + "\u201D");
-  }
-  function removeNodesLocal(ids, parentId) {
-    var currentGone = false;
-    for (var i2 = 0; i2 < ids.length; i2++) {
-      var id = ids[i2], n = nodes[id];
-      if (!n) continue;
-      if (currentNodeId === id) currentGone = true;
-      if (n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el);
-      removeMarks(readerMain, id);
-      removeThreadItem(id);
-      var p = nodes[n.parent_id];
-      if (p && p.bodyEl) removeMarks(p.bodyEl, id);
-      clearEdgeHighlight(id);
-      delete nodes[id];
-    }
-    if (currentGone) {
-      setCurrentNodeId(parentId && nodes[parentId] ? parentId : rootId);
-      if (mode === "reader") openNode(currentNodeId);
-    }
-    if (canvasBuilt) {
-      renderVisibility();
-      drawEdges();
-    }
-    if (mode === "reader") {
-      renderBreadcrumb();
-      renderSidebar();
-    }
-    refreshAmbient();
-    updateSince();
-  }
-
   // node_modules/marked/lib/marked.esm.js
   function _getDefaults() {
     return {
@@ -22463,8 +21852,8 @@ ${text2}</tr>
   };
 
   // node_modules/highlight.js/es/core.js
-  var import_core8 = __toESM(require_core(), 1);
-  var core_default = import_core8.default;
+  var import_core6 = __toESM(require_core(), 1);
+  var core_default = import_core6.default;
 
   // node_modules/highlight.js/es/languages/bash.js
   function bash(hljs) {
@@ -32384,25 +31773,45 @@ ${text2}</tr>
     });
   }
   var viewSaveTimer = 0;
+  function currentViewState() {
+    var cur = nodes[currentNodeId];
+    var scroll = mode === "reader" ? readerMain.scrollTop : cur && cur._scrollTop || 0;
+    var state = { mode, node_id: currentNodeId, scroll };
+    if (viewAdjusted) state.view = { x: view.x, y: view.y, scale: view.scale };
+    return state;
+  }
   function scheduleViewSave() {
     if (frozen || closed) return;
     if (viewSaveTimer) clearTimeout(viewSaveTimer);
     viewSaveTimer = setTimeout(function() {
       viewSaveTimer = 0;
       if (closed) return;
-      var cur = nodes[currentNodeId];
-      var scroll = mode === "reader" ? readerMain.scrollTop : cur && cur._scrollTop || 0;
-      var state = { mode, node_id: currentNodeId, scroll };
-      if (viewAdjusted) state.view = { x: view.x, y: view.y, scale: view.scale };
-      post({ type: "view_state", state });
+      post({ type: "view_state", state: currentViewState() });
     }, 600);
   }
   var saveTimers = {};
   function persistNode(node) {
     if (saveTimers[node.id]) clearTimeout(saveTimers[node.id]);
     saveTimers[node.id] = setTimeout(function() {
+      delete saveTimers[node.id];
       post({ type: "node_update", node_id: node.id, position: { x: node.x, y: node.y }, size: { w: node.w, h: node.h }, collapsed: node.collapsed, font_scale: node.font_scale });
     }, 350);
+  }
+  function flushPendingSaves() {
+    var pending = saveTimers;
+    saveTimers = {};
+    var posts = Object.keys(pending).map(function(id) {
+      clearTimeout(pending[id]);
+      var node = nodes[id];
+      if (!node) return Promise.resolve();
+      return post({ type: "node_update", node_id: node.id, position: { x: node.x, y: node.y }, size: { w: node.w, h: node.h }, collapsed: node.collapsed, font_scale: node.font_scale });
+    });
+    if (viewSaveTimer) {
+      clearTimeout(viewSaveTimer);
+      viewSaveTimer = 0;
+      posts.push(post({ type: "view_state", state: currentViewState() }));
+    }
+    return Promise.all(posts);
   }
   function persistNodesBulk(list2) {
     if (!list2 || !list2.length) return;
@@ -32703,6 +32112,618 @@ ${text2}</tr>
     if (mode === "reader") renderSidebar();
     updateComposerState();
     if (canvasBuilt) for (var cid in nodes) updateCardComposer(nodes[cid]);
+  }
+
+  // src/ui/snapshot.js
+  var snapshotHooks = {
+    fetchAssetBinary: null,
+    getSnapshotHole: null,
+    getFrozenClientSource: null,
+    getDompurifySource: null,
+    getStylesheetText: null
+  };
+  function setSnapshotHooks(hooks) {
+    snapshotHooks = Object.assign({}, snapshotHooks, hooks || {});
+  }
+  function snapshotViewState() {
+    var cur = nodes[currentNodeId];
+    var scroll = mode === "reader" ? readerMain.scrollTop : cur && cur._scrollTop || 0;
+    return {
+      mode,
+      node_id: currentNodeId,
+      scroll,
+      view: { x: view.x, y: view.y, scale: view.scale }
+    };
+  }
+  function collectAssetNames(snapshotNodes) {
+    var names = {};
+    snapshotNodes.forEach(function(node) {
+      extractAssetRefsFromMarkdown(node.markdown).forEach(function(name) {
+        names[name] = true;
+      });
+    });
+    return Object.keys(names).sort();
+  }
+  async function fetchAssetBinary(name) {
+    if (typeof snapshotHooks.fetchAssetBinary === "function") {
+      try {
+        var hooked = await snapshotHooks.fetchAssetBinary(name);
+        if (hooked) return hooked;
+      } catch (e) {
+      }
+    }
+    try {
+      var slash = String.fromCharCode(47);
+      var res = await fetch(slash + "assets" + slash + name, { cache: "no-store" });
+      if (!res.ok) return new Uint8Array();
+      return await res.blob();
+    } catch (e) {
+      return new Uint8Array();
+    }
+  }
+  async function buildAssetData(snapshotNodes) {
+    var out = {};
+    var names = collectAssetNames(snapshotNodes);
+    for (var i2 = 0; i2 < names.length; i2++) out[names[i2]] = await binaryToBase64(await fetchAssetBinary(names[i2]));
+    return out;
+  }
+  function extractDompurifySource() {
+    if (typeof snapshotHooks.getDompurifySource === "function") {
+      return snapshotHooks.getDompurifySource() || "";
+    }
+    var script2 = document.scripts && document.scripts[0] ? document.scripts[0].textContent || "" : "";
+    var marker = "\n(function(){";
+    var idx = script2.indexOf(marker);
+    return idx === -1 ? "" : script2.slice(0, idx);
+  }
+  async function buildSnapshotProjection() {
+    var viewState = snapshotViewState();
+    if (typeof snapshotHooks.getSnapshotHole !== "function") throw new Error("Snapshot document is unavailable");
+    await flushPendingSaves();
+    var hole = await snapshotHooks.getSnapshotHole();
+    return createSnapshotProjection(hole, viewState, await buildAssetData(hole.nodes));
+  }
+  function buildSnapshotHtml2(snapshotProjection) {
+    var title = snapshotProjection && snapshotProjection.hole && snapshotProjection.hole.title || "Rabbithole";
+    var styleText = typeof snapshotHooks.getStylesheetText === "function" ? snapshotHooks.getStylesheetText() : "";
+    if (!styleText) throw new Error("Frozen stylesheet is unavailable");
+    var dompurifySource = extractDompurifySource();
+    var frozenClient = typeof snapshotHooks.getFrozenClientSource === "function" ? snapshotHooks.getFrozenClientSource() : window.__RABBITHOLE_FROZEN_CLIENT__;
+    if (!frozenClient) throw new Error("Frozen client bundle is unavailable");
+    return buildSnapshotHtml({
+      title,
+      stylesheetText: styleText,
+      dompurifySource,
+      frozenClientSource: frozenClient,
+      snapshotProjection
+    });
+  }
+  function exportFilename(title) {
+    var slug = String(title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+    return "rabbithole-" + (slug || "export") + ".html";
+  }
+  async function downloadSnapshot() {
+    var snapshotProjection = await buildSnapshotProjection();
+    var html2 = buildSnapshotHtml2(snapshotProjection);
+    var blob = new Blob([html2], { type: "text/html;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = exportFilename(snapshotProjection.hole.title);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() {
+      URL.revokeObjectURL(url);
+    }, 3e4);
+    return html2;
+  }
+
+  // src/ui/focus-trap.js
+  var FOCUSABLE2 = [
+    "a[href]",
+    "button:not([disabled])",
+    "textarea:not([disabled])",
+    "input:not([disabled])",
+    "select:not([disabled])",
+    "[tabindex]:not([tabindex='-1'])"
+  ].join(",");
+  function activateFocusTrap(root, options2) {
+    if (!root) return function() {
+    };
+    options2 = options2 || {};
+    var previous = document.activeElement;
+    if (!root.hasAttribute("tabindex")) root.setAttribute("tabindex", "-1");
+    function focusables() {
+      var all = root.querySelectorAll ? Array.prototype.slice.call(root.querySelectorAll(FOCUSABLE2)) : [];
+      return all.filter(function(el) {
+        return el.offsetParent !== null || el === document.activeElement || el === options2.initialFocus;
+      });
+    }
+    function focusInitial() {
+      var target = options2.initialFocus || focusables()[0] || root;
+      try {
+        target.focus({ preventScroll: true });
+      } catch (e) {
+        try {
+          target.focus();
+        } catch (_e) {
+        }
+      }
+    }
+    function onKeydown2(e) {
+      if (e.key === "Escape" && typeof options2.onEscape === "function") {
+        e.preventDefault();
+        e.stopPropagation();
+        options2.onEscape(e);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      var items = focusables();
+      if (!items.length) {
+        e.preventDefault();
+        root.focus();
+        return;
+      }
+      var first = items[0];
+      var last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", onKeydown2, true);
+    setTimeout(focusInitial, 0);
+    return function deactivateFocusTrap() {
+      document.removeEventListener("keydown", onKeydown2, true);
+      if (options2.restoreFocus !== false && previous && previous.focus) {
+        try {
+          previous.focus({ preventScroll: true });
+        } catch (e) {
+          try {
+            previous.focus();
+          } catch (_e) {
+          }
+        }
+      }
+    };
+  }
+
+  // src/ui/primitives/popover.js
+  function openPopover(options2) {
+    var trigger = options2.trigger, surface = options2.surface, closed2 = false;
+    trigger == null ? void 0 : trigger.setAttribute("aria-expanded", "true");
+    var position = anchorSurface(trigger, surface, { placement: options2.placement });
+    var trap = activateFocusTrap(options2.trapRoot || surface, {
+      initialFocus: options2.initialFocus,
+      restoreFocus: false
+    });
+    var unregister = registerLayer({
+      element: surface,
+      trigger,
+      onClose: function(reason) {
+        var _a2;
+        (_a2 = options2.onClose) == null ? void 0 : _a2.call(options2, reason);
+      },
+      closeOnEscape: options2.closeOnEscape,
+      closeOnOutsidePointer: options2.closeOnOutsidePointer,
+      restoreFocus: options2.restoreFocus
+    });
+    function close2(settings) {
+      if (closed2) return;
+      closed2 = true;
+      trigger == null ? void 0 : trigger.setAttribute("aria-expanded", "false");
+      trap();
+      position.dispose();
+      unregister(settings);
+    }
+    return { close: close2, dispose: close2, update: position.update };
+  }
+
+  // src/ui/branch-surfaces.js
+  var branchHooks = {
+    post: function() {
+      return Promise.resolve({ ok: true });
+    },
+    exportPortable: null
+  };
+  function registerBranchHooks(hooks) {
+    Object.assign(branchHooks, hooks || {});
+  }
+  var peekTimer = 0;
+  var peekFor = null;
+  var peekPosition = null;
+  var peekLayer = null;
+  function initBranchSurfaces() {
+    readerMain.addEventListener("mouseover", onReaderMarkMouseover);
+    readerMain.addEventListener("mouseout", onReaderMarkMouseout);
+    world.addEventListener("mouseover", onReaderMarkMouseover);
+    world.addEventListener("mouseout", onReaderMarkMouseout);
+    readerMain.addEventListener("focusin", onMarkFocusin);
+    readerMain.addEventListener("focusout", onMarkFocusout);
+    world.addEventListener("focusin", onMarkFocusin);
+    world.addEventListener("focusout", onMarkFocusout);
+    peekEl.addEventListener("mouseleave", function() {
+      hidePeek();
+    });
+    peekEl.addEventListener("click", function() {
+      var kid = peekFor && nodes[peekFor];
+      hidePeek();
+      if (kid) openNode(kid.id);
+    });
+    document.getElementById("r-share").addEventListener("click", function(e) {
+      e.stopPropagation();
+      toggleShare(e.currentTarget, e.detail === 0);
+    });
+    document.getElementById("t-share").addEventListener("click", function(e) {
+      e.stopPropagation();
+      toggleShare(e.currentTarget, e.detail === 0);
+    });
+    shareMenu.addEventListener("keydown", onShareMenuKeydown);
+    document.getElementById("sm-doc").addEventListener("click", onCopyDoc);
+    document.getElementById("sm-trail").addEventListener("click", onCopyTrail);
+    document.getElementById("sm-export").addEventListener("click", onExportSnapshot);
+    document.getElementById("sm-portable").addEventListener("click", onExportPortable);
+    document.getElementById("sm-synth").addEventListener("click", function(e) {
+      closeShare();
+      synthesize(motionSourceFromEvent(e));
+    });
+    document.getElementById("cf-keep").addEventListener("click", hideConfirm);
+    document.getElementById("cf-remove").addEventListener("click", function() {
+      var node = confirmFor && nodes[confirmFor];
+      hideConfirm();
+      if (node) deleteBranch(node);
+    });
+  }
+  function hidePeek() {
+    if (peekTimer) {
+      clearTimeout(peekTimer);
+      peekTimer = 0;
+    }
+    if (peekPosition) {
+      peekPosition.dispose();
+      peekPosition = null;
+    }
+    if (peekLayer) {
+      peekLayer({ restoreFocus: false });
+      peekLayer = null;
+    }
+    peekFor = null;
+    peekEl.classList.remove("visible");
+    peekEl.setAttribute("aria-hidden", "true");
+  }
+  function showPeek(mark) {
+    var kid = nodes[mark.dataset.child];
+    if (!kid || kid.status !== "answered") return;
+    hidePeek();
+    peekFor = kid.id;
+    peekEl.querySelector("[data-peek-unread]").hidden = !isUnread(kid);
+    peekEl.querySelector("[data-peek-title]").textContent = kid.title || "Untitled";
+    var badge = peekEl.querySelector("[data-peek-badge]");
+    var badgeText = kid.origin && kid.origin.synthesis ? "\u2726 Synthesis" : kid.origin && kid.origin.lens ? lensLabel2(kid.origin.lens) : "";
+    badge.textContent = badgeText;
+    badge.hidden = !badgeText;
+    var peekBody = peekEl.querySelector("[data-peek-body]");
+    var fragment = document.createRange().createContextualFragment(kid.html || "");
+    peekBody.replaceChildren(fragment);
+    if (typeof mountVisuals === "function") {
+      mountVisuals(peekBody, "peek:" + kid.id);
+    }
+    peekEl.classList.add("visible");
+    peekEl.setAttribute("aria-hidden", "false");
+    setSurfaceOrigin(peekEl, mark.getBoundingClientRect());
+    peekPosition = anchorSurface(mark, peekEl, { placement: "bottom-start" });
+    peekLayer = registerLayer({
+      element: peekEl,
+      trigger: mark,
+      restoreFocus: false,
+      closeOnOutsidePointer: false,
+      onClose: hidePeek
+    });
+  }
+  function onReaderMarkMouseover(e) {
+    var m = e.target.closest && e.target.closest("mark[data-child]");
+    if (!m) return;
+    var kid = nodes[m.dataset.child];
+    if (!kid || kid.status !== "answered") return;
+    if (peekTimer) clearTimeout(peekTimer);
+    peekTimer = setTimeout(function() {
+      peekTimer = 0;
+      showPeek(m);
+    }, 220);
+  }
+  function onReaderMarkMouseout(e) {
+    var m = e.target.closest && e.target.closest("mark[data-child]");
+    if (!m) return;
+    if (peekTimer) {
+      clearTimeout(peekTimer);
+      peekTimer = 0;
+    }
+    setTimeout(function() {
+      if (!peekEl.matches(":hover") && !readerMain.querySelector("mark[data-child]:hover")) hidePeek();
+    }, 80);
+  }
+  function onMarkFocusin(e) {
+    var m = e.target.closest && e.target.closest("mark[data-child]");
+    if (!m) return;
+    var kid = nodes[m.dataset.child];
+    if (!kid || kid.status !== "answered") return;
+    if (peekTimer) clearTimeout(peekTimer);
+    peekTimer = setTimeout(function() {
+      peekTimer = 0;
+      if (document.activeElement === m) showPeek(m);
+    }, 220);
+  }
+  function onMarkFocusout(e) {
+    var m = e.target.closest && e.target.closest("mark[data-child]");
+    if (!m) return;
+    if (peekTimer) {
+      clearTimeout(peekTimer);
+      peekTimer = 0;
+    }
+    setTimeout(function() {
+      if (!peekEl.matches(":hover") && document.activeElement !== m) hidePeek();
+    }, 0);
+  }
+  var shareOpen = false;
+  var shareAnchor = null;
+  var sharePopover = null;
+  function visibleShareItems() {
+    return Array.prototype.slice.call(shareMenu.querySelectorAll('[role="menuitem"]')).filter(function(item) {
+      return item.style.display !== "none";
+    });
+  }
+  function focusShareItem(item) {
+    visibleShareItems().forEach(function(candidate) {
+      candidate.tabIndex = candidate === item ? 0 : -1;
+    });
+    if (item) item.focus();
+  }
+  function onShareMenuKeydown(e) {
+    var items = visibleShareItems();
+    if (!items.length) return;
+    var index = items.indexOf(document.activeElement), target = null;
+    if (e.key === "ArrowDown") target = items[(index + 1 + items.length) % items.length];
+    else if (e.key === "ArrowUp") target = items[(index - 1 + items.length) % items.length];
+    else if (e.key === "Home") target = items[0];
+    else if (e.key === "End") target = items[items.length - 1];
+    else if (e.key === "Enter" || e.key === " ") {
+      if (index < 0) return;
+      e.preventDefault();
+      items[index].click();
+      return;
+    } else if (e.key === "Tab") {
+      closeShare();
+      return;
+    } else return;
+    e.preventDefault();
+    focusShareItem(target);
+  }
+  function toggleShare(anchor, openedByKeyboard) {
+    if (shareOpen) {
+      closeShare();
+      return;
+    }
+    var noAgent = frozen || closed;
+    document.getElementById("sm-export").style.display = frozen ? "none" : "";
+    document.getElementById("sm-portable").style.display = !frozen && typeof branchHooks.exportPortable === "function" ? "" : "none";
+    document.getElementById("sm-sep2").style.display = noAgent ? "none" : "";
+    document.getElementById("sm-synth").style.display = noAgent ? "none" : "";
+    var items = visibleShareItems();
+    items.forEach(function(item, index) {
+      item.tabIndex = index === 0 ? 0 : -1;
+    });
+    shareAnchor = anchor;
+    shareOpen = true;
+    shareMenu.classList.add("visible");
+    setSurfaceOrigin(shareMenu, anchor.getBoundingClientRect());
+    sharePopover = openPopover({
+      trigger: anchor,
+      surface: shareMenu,
+      placement: "bottom-end",
+      initialFocus: openedByKeyboard ? items[0] : null,
+      onClose: closeShare
+    });
+  }
+  function closeShare() {
+    shareOpen = false;
+    shareMenu.classList.remove("visible");
+    if (sharePopover) {
+      sharePopover.close();
+      sharePopover = null;
+    }
+    shareAnchor = null;
+  }
+  function copyText(text2, okMsg) {
+    function done() {
+      flashHint(okMsg);
+    }
+    function legacy() {
+      var previousFocus = document.activeElement;
+      var ta = document.createElement("textarea");
+      ta.value = text2;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch (err) {
+      }
+      document.body.removeChild(ta);
+      if (previousFocus && previousFocus.isConnected) {
+        try {
+          previousFocus.focus();
+        } catch (err) {
+        }
+      }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text2).then(done, function() {
+        legacy();
+        done();
+      });
+    } else {
+      legacy();
+      done();
+    }
+  }
+  function originLine(n) {
+    if (!n.origin) return "";
+    if (n.origin.synthesis) return "> \u2726 Synthesis of the whole Rabbithole\n\n";
+    var ask2 = n.origin.lens ? lensLabel2(n.origin.lens) : n.origin.question || "";
+    if (n.origin.selected_text) return "> Asked about: \u201C" + n.origin.selected_text + "\u201D" + (ask2 ? " \u2014 " + ask2 : "") + "\n\n";
+    return ask2 ? "> Follow-up \u2014 " + ask2 + "\n\n" : "";
+  }
+  function docMarkdown(n, depth) {
+    var h = "#";
+    for (var i2 = 0; i2 < Math.min(depth, 3); i2++) h += "#";
+    var body = (n.md || "").trim() || "_(still being written)_";
+    return h + " " + (n.title || "Untitled") + "\n\n" + originLine(n) + body + "\n";
+  }
+  function trailMarkdown(id) {
+    var path2 = lineageNodes(id), parts = [];
+    for (var i2 = 0; i2 < path2.length; i2++) parts.push(docMarkdown(path2[i2], i2));
+    return parts.join("\n---\n\n");
+  }
+  function onCopyDoc() {
+    closeShare();
+    var n = nodes[currentNodeId];
+    if (!n) return;
+    copyText(docMarkdown(n, 0), "Copied \u201C" + truncate2(n.title || "Untitled", 40) + "\u201D as Markdown");
+  }
+  function onCopyTrail() {
+    closeShare();
+    var path2 = lineageNodes(currentNodeId);
+    copyText(trailMarkdown(currentNodeId), path2.length === 1 ? "Copied this document as Markdown" : "Copied the trail \u2014 " + path2.length + " documents");
+  }
+  function onExportSnapshot() {
+    closeShare();
+    flashHint("Preparing snapshot...");
+    downloadSnapshot().then(function() {
+      flashHint("Snapshot downloading \u2014 a single file that opens anywhere.");
+    }, function() {
+      flashHint("Couldn't prepare the snapshot.");
+    });
+  }
+  function onExportPortable() {
+    closeShare();
+    if (typeof branchHooks.exportPortable !== "function") {
+      flashHint("Rabbithole export is only available in the web app.");
+      return;
+    }
+    flashHint("Preparing Rabbithole export...");
+    Promise.resolve().then(function() {
+      return branchHooks.exportPortable();
+    }).then(function(result) {
+      var name = result && result.filename ? " " + result.filename : "";
+      flashHint("Rabbithole export downloading." + name);
+    }, function() {
+      flashHint("Couldn't prepare the Rabbithole export.");
+    });
+  }
+  function synthesize(source2) {
+    if (closed) {
+      flashHint("Session ended \u2014 reopen this Rabbithole from your terminal first.");
+      return;
+    }
+    var root = nodes[rootId];
+    if (!root) return;
+    for (var k in nodes) {
+      var n = nodes[k];
+      if (n.status === "pending" && n.origin && n.origin.synthesis) {
+        flashHint("A synthesis is already being written\u2026");
+        goToNode(n, source2);
+        return;
+      }
+    }
+    var q = "Step back and write the synthesis of this whole Rabbithole so far: the key ideas we explored, how they connect, and the takeaways worth keeping. Make it a standalone summary of the journey.";
+    var kid = sendFollowup(root, q, null, true);
+    if (mode === "canvas") revealNode(kid, source2);
+    flashHint("\u2726 Synthesizing this journey \u2014 it will branch from where this Rabbithole began.");
+  }
+  var confirmFor = null;
+  var confirmPopover = null;
+  function confirmDelete(node, anchor) {
+    if (closed) {
+      flashHint(frozen ? "This is a read-only snapshot." : "Session ended \u2014 changes can't be saved anymore.");
+      return;
+    }
+    var subCount = countSubtree(node.id) - 1;
+    document.getElementById("cf-msg").textContent = subCount > 0 ? "Remove this branch and " + subCount + " inside it?" : "Remove this branch?";
+    hideConfirm({ restoreFocus: false });
+    confirmFor = node.id;
+    confirmEl.classList.add("visible");
+    setSurfaceOrigin(confirmEl, anchor.getBoundingClientRect());
+    confirmPopover = openPopover({
+      trigger: anchor,
+      surface: confirmEl,
+      placement: "bottom-end",
+      initialFocus: document.getElementById("cf-keep"),
+      onClose: hideConfirm
+    });
+  }
+  function hideConfirm(settings) {
+    confirmFor = null;
+    confirmEl.classList.remove("visible");
+    if (confirmPopover) {
+      var popover = confirmPopover;
+      confirmPopover = null;
+      popover.close(settings);
+    }
+  }
+  function countSubtree(id) {
+    var c2 = 1;
+    childrenOf(id).forEach(function(k) {
+      c2 += countSubtree(k.id);
+    });
+    return c2;
+  }
+  function collectSubtree(id, out) {
+    out.push(id);
+    childrenOf(id).forEach(function(k) {
+      collectSubtree(k.id, out);
+    });
+    return out;
+  }
+  function deleteBranch(node) {
+    var title = node.title || "Untitled";
+    var ids = collectSubtree(node.id, []);
+    branchHooks.post({ type: "delete_node", node_id: node.id });
+    removeNodesLocal(ids, node.parent_id);
+    flashHint(ids.length > 1 ? "Removed \u201C" + truncate2(title, 40) + "\u201D and " + (ids.length - 1) + " inside it" : "Removed \u201C" + truncate2(title, 40) + "\u201D");
+  }
+  function removeNodesLocal(ids, parentId) {
+    var currentGone = false;
+    for (var i2 = 0; i2 < ids.length; i2++) {
+      var id = ids[i2], n = nodes[id];
+      if (!n) continue;
+      if (currentNodeId === id) currentGone = true;
+      if (n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el);
+      removeMarks(readerMain, id);
+      removeThreadItem(id);
+      var p = nodes[n.parent_id];
+      if (p && p.bodyEl) removeMarks(p.bodyEl, id);
+      clearEdgeHighlight(id);
+      delete nodes[id];
+    }
+    if (currentGone) {
+      setCurrentNodeId(parentId && nodes[parentId] ? parentId : rootId);
+      if (mode === "reader") openNode(currentNodeId);
+    }
+    if (canvasBuilt) {
+      renderVisibility();
+      drawEdges();
+    }
+    if (mode === "reader") {
+      renderBreadcrumb();
+      renderSidebar();
+    }
+    refreshAmbient();
+    updateSince();
   }
 
   // src/ui/hydrate.js

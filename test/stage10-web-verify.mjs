@@ -493,7 +493,22 @@ async function verifyAskKeyUxAndRail() {
   );
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("rh-web-api-keys") || "{}").openrouter), MOCK_KEY, "remembered key should stay in this browser's provider-key map");
   assert.equal(await page.evaluate(() => localStorage.getItem("rh-web-api-key")), null, "legacy single-key storage should stay retired");
+  await page.click('.node-btn[aria-label="Collapse document"]');
+  assert.equal(await page.locator(".node").first().evaluate((node) => node.classList.contains("collapsed")), true, "real UI mutation should collapse the document immediately");
+  const mutationSnapshot = JSON.parse(extractSnapshotPayload(await page.evaluate(() => window.__rabbitholeTest.exportSnapshot())));
+  assert.equal(mutationSnapshot.hole.nodes.find((node) => node.id === rootIdWhileLoading)?.collapsed, true,
+    `immediate snapshot export must flush the canonical document mutation (root=${rootIdWhileLoading}, nodes=${JSON.stringify(mutationSnapshot.hole.nodes)})`);
+  await page.click('.node-btn[aria-label="Larger text"]');
+  const mutationPortable = await page.evaluate(() => window.__rabbitholeTest.exportPortable());
+  assert.equal(mutationPortable.hole.nodes.find((node) => node.id === rootIdWhileLoading)?.font_scale, 1.1,
+    `immediate portable export must flush the canonical document mutation (root=${rootIdWhileLoading}, nodes=${JSON.stringify(mutationPortable.hole.nodes)})`);
+  const persistedViewBeforeLiveChange = await page.evaluate(async () => (await window.__rabbitholeTest.readStoredHole()).view_state);
+  await page.dblclick(`.node[data-id="${rootIdWhileLoading}"] .node-head`);
+  await page.waitForFunction(() => !document.body.classList.contains("mode-canvas"));
   const snapshotHtml = await page.evaluate(() => window.__rabbitholeTest.exportSnapshot());
+  const liveViewSnapshot = JSON.parse(extractSnapshotPayload(snapshotHtml));
+  assert.equal(liveViewSnapshot.hole.view_state.mode, "reader", `snapshot must capture the live view at export time (persistedBefore=${JSON.stringify(persistedViewBeforeLiveChange)}, exported=${JSON.stringify(liveViewSnapshot.hole.view_state)})`);
+  assert.notDeepEqual(liveViewSnapshot.hole.view_state, persistedViewBeforeLiveChange, `live snapshot view must not reuse the previously persisted view (persistedBefore=${JSON.stringify(persistedViewBeforeLiveChange)}, exported=${JSON.stringify(liveViewSnapshot.hole.view_state)})`);
   assert(!snapshotHtml.includes(MOCK_KEY), "snapshot export must not contain provider key");
   const payloadMatches = [...snapshotHtml.matchAll(/<script type="application\/vnd\.rabbithole\+json" id="rabbithole-portable">([\s\S]*?)<\/script>/g)];
   assert.equal(payloadMatches.length, 1, "snapshot HTML should contain exactly one self-identifying inert portable payload");
@@ -505,11 +520,12 @@ async function verifyAskKeyUxAndRail() {
   ));
   const normalizedPortable = structuredClone(portableProjection);
   normalizedPortable.hole.view_state = snapshotProjection.hole.view_state;
+  normalizedPortable.hole.updated_at = snapshotProjection.hole.updated_at;
   normalizedPortable.assets = Object.fromEntries(Object.entries(normalizedPortable.assets).filter(([name]) => referencedAssets.has(name)));
   assert.deepEqual(
     snapshotProjection,
     normalizedPortable,
-    "snapshot payload should equal buildRabbitholeExport modulo one live view_state substitution and referenced-only assets"
+    "snapshot payload should equal buildRabbitholeExport modulo the live view_state write (including updated_at) and referenced-only assets"
   );
   assert.equal(snapshotProjection.hole.created_at, portableProjection.hole.created_at, "hole timestamps must survive the portable snapshot projection");
   assert.deepEqual(
@@ -522,6 +538,8 @@ async function verifyAskKeyUxAndRail() {
   const rawJson = JSON.stringify(hole);
   assert(!rawJson.includes(MOCK_KEY), "IndexedDB hole record must not contain provider key");
 
+  await page.click("#r-canvas");
+  await page.waitForFunction(() => document.body.classList.contains("mode-canvas"));
   await page.click("#t-settings");
   await page.waitForSelector("#web-settings-popover");
   await page.waitForFunction(() => {
