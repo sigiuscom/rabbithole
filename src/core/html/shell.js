@@ -56,13 +56,13 @@ export const CANVAS_SHELL = `
 <div id="ask">
   <div class="ask-input">
     <textarea id="ask-text" rows="1" placeholder="Ask about this… ↵ = Explain"></textarea>
-    <button class="send-btn" id="ask-go" title="Ask (↵)" aria-label="Ask"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 12.8V3.6M8 3.6 3.9 7.7M8 3.6l4.1 4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    ${iconButtonMarkup({ bare: true, className: "send-btn", id: "ask-go", title: "Ask (↵)", ariaLabel: "Ask", svgIconHtml: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 12.8V3.6M8 3.6 3.9 7.7M8 3.6l4.1 4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' })}
   </div>
   <div class="ask-lenses" id="ask-lenses">
-    <button class="lens" data-lens="explain">Explain <kbd>1</kbd></button>
-    <button class="lens" data-lens="eli5">ELI5 <kbd>2</kbd></button>
-    <button class="lens" data-lens="example">Example <kbd>3</kbd></button>
-    <button class="lens" data-lens="deeper">Go Deeper <kbd>4</kbd></button>
+    ${buttonMarkup({ bare: true, className: "lens", dataLens: "explain", label: "Explain ", kbdHint: "1" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataLens: "eli5", label: "ELI5 ", kbdHint: "2" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataLens: "example", label: "Example ", kbdHint: "3" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataLens: "deeper", label: "Go Deeper ", kbdHint: "4" })}
   </div>
 </div>
 
@@ -78,13 +78,13 @@ export const CANVAS_SHELL = `
 <div id="peek"></div>
 
 <div id="sharemenu" role="menu" aria-label="Share and export">
-  <button class="sm-item" id="sm-trail" role="menuitem"><span class="sm-ic">⤷</span>Copy trail as Markdown</button>
-  <button class="sm-item" id="sm-doc" role="menuitem"><span class="sm-ic">⧉</span>Copy document as Markdown</button>
+  ${buttonMarkup({ bare: true, className: "sm-item", id: "sm-trail", role: "menuitem", tabIndex: -1, label: "Copy trail as Markdown", svgIconHtml: '<span class="sm-ic">⤷</span>' })}
+  ${buttonMarkup({ bare: true, className: "sm-item", id: "sm-doc", role: "menuitem", tabIndex: -1, label: "Copy document as Markdown", svgIconHtml: '<span class="sm-ic">⧉</span>' })}
   <div class="sm-sep"></div>
-  <button class="sm-item" id="sm-export" role="menuitem"><span class="sm-ic">⇩</span>Download snapshot (.html)</button>
-  <button class="sm-item" id="sm-portable" role="menuitem"><span class="sm-ic">⇣</span>Export Rabbithole (.rabbithole)</button>
+  ${buttonMarkup({ bare: true, className: "sm-item", id: "sm-export", role: "menuitem", tabIndex: -1, label: "Download snapshot (.html)", svgIconHtml: '<span class="sm-ic">⇩</span>' })}
+  ${buttonMarkup({ bare: true, className: "sm-item", id: "sm-portable", role: "menuitem", tabIndex: -1, label: "Export Rabbithole (.rabbithole)", svgIconHtml: '<span class="sm-ic">⇣</span>' })}
   <div class="sm-sep" id="sm-sep2"></div>
-  <button class="sm-item" id="sm-synth" role="menuitem"><span class="sm-ic">✦</span>Synthesize this journey</button>
+  ${buttonMarkup({ bare: true, className: "sm-item", id: "sm-synth", role: "menuitem", tabIndex: -1, label: "Synthesize this journey", svgIconHtml: '<span class="sm-ic">✦</span>' })}
 </div>
 
 <div id="confirm">

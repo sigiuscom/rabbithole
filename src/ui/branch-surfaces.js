@@ -65,8 +65,9 @@ export function initBranchSurfaces(){
     hidePeek();
     if (kid) openNode(kid.id);
   });
-  document.getElementById("r-share").addEventListener("click", function(e){ e.stopPropagation(); toggleShare(e.currentTarget); });
-  document.getElementById("t-share").addEventListener("click", function(e){ e.stopPropagation(); toggleShare(e.currentTarget); });
+  document.getElementById("r-share").addEventListener("click", function(e){ e.stopPropagation(); toggleShare(e.currentTarget, e.detail === 0); });
+  document.getElementById("t-share").addEventListener("click", function(e){ e.stopPropagation(); toggleShare(e.currentTarget, e.detail === 0); });
+  shareMenu.addEventListener("keydown", onShareMenuKeydown);
   document.getElementById("sm-doc").addEventListener("click", onCopyDoc);
   document.getElementById("sm-trail").addEventListener("click", onCopyTrail);
   document.getElementById("sm-export").addEventListener("click", onExportSnapshot);
@@ -131,7 +132,36 @@ export function hidePeek(){
   // SHARE — export, copy as Markdown, synthesize
   // ===========================================================================
   var shareOpen = false, shareAnchor = null, sharePopover = null;
-export function toggleShare(anchor){
+  function visibleShareItems(){
+    return Array.prototype.slice.call(shareMenu.querySelectorAll('[role="menuitem"]')).filter(function(item){
+      return item.style.display !== "none";
+    });
+  }
+  function focusShareItem(item){
+    visibleShareItems().forEach(function(candidate){ candidate.tabIndex = candidate === item ? 0 : -1; });
+    if (item) item.focus();
+  }
+  function onShareMenuKeydown(e){
+    var items = visibleShareItems();
+    if (!items.length) return;
+    var index = items.indexOf(document.activeElement), target = null;
+    if (e.key === "ArrowDown") target = items[(index + 1 + items.length) % items.length];
+    else if (e.key === "ArrowUp") target = items[(index - 1 + items.length) % items.length];
+    else if (e.key === "Home") target = items[0];
+    else if (e.key === "End") target = items[items.length - 1];
+    else if (e.key === "Enter" || e.key === " ") {
+      if (index < 0) return;
+      e.preventDefault();
+      items[index].click();
+      return;
+    } else if (e.key === "Tab") {
+      closeShare();
+      return;
+    } else return;
+    e.preventDefault();
+    focusShareItem(target);
+  }
+export function toggleShare(anchor, openedByKeyboard){
     if (shareOpen){ closeShare(); return; }
     // A frozen snapshot can't export (it IS the export) or reach an agent.
     var noAgent = frozen || closed;
@@ -139,12 +169,14 @@ export function toggleShare(anchor){
     document.getElementById("sm-portable").style.display = (!frozen && typeof branchHooks.exportPortable === "function") ? "" : "none";
     document.getElementById("sm-sep2").style.display = noAgent ? "none" : "";
     document.getElementById("sm-synth").style.display = noAgent ? "none" : "";
+    var items = visibleShareItems();
+    items.forEach(function(item, index){ item.tabIndex = index === 0 ? 0 : -1; });
     shareAnchor = anchor;
     shareOpen = true;
     shareMenu.classList.add("visible");
     setSurfaceOrigin(shareMenu, anchor.getBoundingClientRect());
     sharePopover = openPopover({ trigger: anchor, surface: shareMenu, placement: "bottom-end",
-      initialFocus: shareMenu.querySelector("button"),
+      initialFocus: openedByKeyboard ? items[0] : null,
       onClose: closeShare
     });
   }
@@ -158,11 +190,15 @@ export function closeShare(){
   function copyText(text, okMsg){
     function done(){ flashHint(okMsg); }
     function legacy(){
+      var previousFocus = document.activeElement;
       var ta = document.createElement("textarea");
       ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
       document.body.appendChild(ta); ta.select();
       try { document.execCommand("copy"); } catch(err){}
       document.body.removeChild(ta);
+      if (previousFocus && previousFocus.isConnected){
+        try { previousFocus.focus(); } catch(err){}
+      }
     }
     if (navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(text).then(done, function(){ legacy(); done(); });

@@ -144,6 +144,8 @@ Scenario references use the Part VI group and shortened ledger wording. `—` me
 | settings trigger ARIA follows live surface state | C2 | Requires `aria-expanded` true/false synchronization and an `aria-controls` reference only while the controlled surface exists. | Chrome: settings trigger accessibility |
 | live math/code/show document rendering | C2 | Protects core authoring rendering. | — |
 | share popover token anchor geometry, surface/padding, and focus restore | C2 | Enforces shared-engine trigger-relative placement and stack focus restoration while retaining the shared surface metrics (`stage10-web-verify.mjs:486-526`). | Chrome: anchored surfaces at viewport edges; focus restoration after transient surfaces |
+| share menu keyboard contract | C2 | Requires keyboard-invoked initial focus, a single roving Tab stop, wrapped Arrow navigation, Home/End, activation, Tab departure, and layer-owned Escape restoration. | Chrome: keyboard-only completion; focus restoration after transient surfaces |
+| frozen share menu suppression and traversal | C2 | Requires frozen snapshots to omit export/portable/synthesis from both presentation and the keyboard traversal set. | Rendering: frozen viewing control parity; Chrome: keyboard-only completion |
 | selection branch streams and titles | C2 | Protects selection-to-branch generation. | Generation: title never arrives (sentinel success only) |
 | reader whole-document follow-up | C2 | Protects document chat branching. | — |
 | streamed branches persist across reload; external request allowlist | C2 | Protects save/re-entry and network scope. | Generation: tab close mid-stream (post-completion reload only) |
@@ -272,11 +274,11 @@ Counts treat each row above as one case; the shared Stage 9 contract counts once
 | Category | Count |
 |---|---:|
 | C1 compatibility contract | 41 |
-| C2 behavioral product contract | 99 |
+| C2 behavioral product contract | 101 |
 | C3 implementation snapshot | 10 |
 | C4 known defect | 5 |
 | C5 design target | 0 |
-| **Total** | **155** |
+| **Total** | **157** |
 
 ## Known-defect fossils
 

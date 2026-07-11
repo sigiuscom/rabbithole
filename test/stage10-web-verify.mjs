@@ -721,8 +721,10 @@ async function verifyCanvasBranching() {
   await page.keyboard.press("Enter");
   await page.waitForSelector("body.mode-canvas");
 
-  await page.click("#t-share");
+  await page.focus("#t-share");
+  await page.keyboard.press("Enter");
   await page.waitForSelector("#sharemenu.visible");
+  await page.waitForFunction(() => document.activeElement?.id === "sm-trail");
   await page.waitForTimeout(130);
   const shareStandard = await page.evaluate(() => {
     const menu = document.getElementById("sharemenu");
@@ -757,10 +759,58 @@ async function verifyCanvasBranching() {
   assert.equal(shareStandard.itemPaddingBottom, "8px");
   assert.equal(shareStandard.expanded, "true");
   assert.equal(shareStandard.menuItems, 5);
+  assert.deepEqual(await page.locator('#sharemenu [role="menuitem"]').evaluateAll((items) => items.map((item) => item.tabIndex)), [0, -1, -1, -1, -1], "Share should expose one item in the Tab sequence");
+  await page.keyboard.press("ArrowUp");
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "sm-synth", "ArrowUp should wrap to the last visible Share item");
+  await page.keyboard.press("ArrowDown");
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "sm-trail", "ArrowDown should wrap to the first visible Share item");
+  await page.keyboard.press("End");
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "sm-synth");
+  await page.keyboard.press("Home");
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "sm-trail");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await page.waitForSelector("#sharemenu:not(.visible)", { state: "attached" });
+  await page.waitForFunction(() => document.activeElement?.id === "t-share").catch(() => {
+    assert.fail("Enter should activate the focused Share item and restore its trigger");
+  });
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.activeElement?.id === "sm-trail");
+  await page.keyboard.press("Tab");
+  await page.waitForSelector("#sharemenu:not(.visible)", { state: "attached" });
+  assert.equal(await page.locator("#sharemenu:focus-within").count(), 0, "Tab should close Share and continue outside the menu");
+  await page.focus("#t-share");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.activeElement?.id === "sm-trail");
   await page.keyboard.press("Escape");
   await page.waitForSelector("#sharemenu:not(.visible)", { state: "attached" });
   assert.equal(await page.getAttribute("#t-share", "aria-expanded"), "false");
   assert.equal(await page.evaluate(() => document.activeElement?.id), "t-share", "closing Share should restore focus to its trigger");
+
+  const frozenHtml = await page.evaluate(() => window.__rabbitholeTest.exportSnapshot());
+  const frozenPage = await context.newPage();
+  await frozenPage.setContent(frozenHtml, { waitUntil: "load" });
+  await frozenPage.focus("#t-share");
+  await frozenPage.keyboard.press("Enter");
+  await frozenPage.waitForSelector("#sharemenu.visible");
+  await frozenPage.waitForFunction(() => document.activeElement?.id === "sm-trail");
+  assert.deepEqual(await frozenPage.locator('#sharemenu [role="menuitem"]:visible').evaluateAll((items) => items.map((item) => item.id)), ["sm-trail", "sm-doc"], "Frozen Share should suppress export, portable export, and synthesis");
+  assert.deepEqual(await frozenPage.locator('#sharemenu [role="menuitem"]').evaluateAll((items) => items.map((item) => ({ id: item.id, tabIndex: item.tabIndex, visible: item.style.display !== "none" }))), [
+    { id: "sm-trail", tabIndex: 0, visible: true },
+    { id: "sm-doc", tabIndex: -1, visible: true },
+    { id: "sm-export", tabIndex: -1, visible: false },
+    { id: "sm-portable", tabIndex: -1, visible: false },
+    { id: "sm-synth", tabIndex: -1, visible: false },
+  ], "Frozen roving tabindex should cover exactly the remaining items");
+  await frozenPage.keyboard.press("ArrowDown");
+  assert.equal(await frozenPage.evaluate(() => document.activeElement?.id), "sm-doc");
+  await frozenPage.keyboard.press("ArrowDown");
+  assert.equal(await frozenPage.evaluate(() => document.activeElement?.id), "sm-trail", "Frozen ArrowDown should wrap across only visible items");
+  await frozenPage.keyboard.press("ArrowUp");
+  assert.equal(await frozenPage.evaluate(() => document.activeElement?.id), "sm-doc", "Frozen ArrowUp should wrap across only visible items");
+  await frozenPage.keyboard.press("Escape");
+  assert.equal(await frozenPage.evaluate(() => document.activeElement?.id), "t-share", "Frozen Share Escape should restore its trigger");
+  await frozenPage.close();
 
   await selectText(page, "Euler identity");
   await page.waitForSelector("#ask.visible");

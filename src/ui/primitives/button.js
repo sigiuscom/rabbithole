@@ -18,6 +18,9 @@ function buttonAttributes(options, iconOnly) {
   let result = attribute("class", className || undefined) +
     attribute("id", options.id) +
     attribute("type", "button") +
+    attribute("role", options.role) +
+    attribute("tabindex", options.tabIndex) +
+    attribute("data-lens", options.dataLens) +
     attribute("title", options.title) +
     attribute("aria-label", ariaLabel || undefined);
   for (const name of STATEFUL_ARIA) {

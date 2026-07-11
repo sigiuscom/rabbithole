@@ -4610,7 +4610,7 @@ var RabbitholeFrozenClient = (() => {
     if (!iconOnly && !label && !ariaLabel) throw new Error("Button requires an accessible name");
     const baseClass = options2.bare ? "" : iconOnly ? "tool-btn tool-icon" : "tool-btn";
     const className = [baseClass, options2.className].filter(Boolean).join(" ");
-    let result = attribute("class", className || void 0) + attribute("id", options2.id) + attribute("type", "button") + attribute("title", options2.title) + attribute("aria-label", ariaLabel || void 0);
+    let result = attribute("class", className || void 0) + attribute("id", options2.id) + attribute("type", "button") + attribute("role", options2.role) + attribute("tabindex", options2.tabIndex) + attribute("data-lens", options2.dataLens) + attribute("title", options2.title) + attribute("aria-label", ariaLabel || void 0);
     for (const name of STATEFUL_ARIA) {
       const camelName = name.replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase());
       result += attribute(name, (_a2 = options2[name]) != null ? _a2 : options2[camelName]);
@@ -4683,13 +4683,13 @@ var RabbitholeFrozenClient = (() => {
 <div id="ask">
   <div class="ask-input">
     <textarea id="ask-text" rows="1" placeholder="Ask about this\u2026 \u21B5 = Explain"></textarea>
-    <button class="send-btn" id="ask-go" title="Ask (\u21B5)" aria-label="Ask"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 12.8V3.6M8 3.6 3.9 7.7M8 3.6l4.1 4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    ${iconButtonMarkup({ bare: true, className: "send-btn", id: "ask-go", title: "Ask (\u21B5)", ariaLabel: "Ask", svgIconHtml: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 12.8V3.6M8 3.6 3.9 7.7M8 3.6l4.1 4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' })}
   </div>
   <div class="ask-lenses" id="ask-lenses">
-    <button class="lens" data-lens="explain">Explain <kbd>1</kbd></button>
-    <button class="lens" data-lens="eli5">ELI5 <kbd>2</kbd></button>
-    <button class="lens" data-lens="example">Example <kbd>3</kbd></button>
-    <button class="lens" data-lens="deeper">Go Deeper <kbd>4</kbd></button>
+    ${buttonMarkup({ bare: true, className: "lens", dataLens: "explain", label: "Explain ", kbdHint: "1" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataLens: "eli5", label: "ELI5 ", kbdHint: "2" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataLens: "example", label: "Example ", kbdHint: "3" })}
+    ${buttonMarkup({ bare: true, className: "lens", dataLens: "deeper", label: "Go Deeper ", kbdHint: "4" })}
   </div>
 </div>
 
@@ -4705,13 +4705,13 @@ var RabbitholeFrozenClient = (() => {
 <div id="peek"></div>
 
 <div id="sharemenu" role="menu" aria-label="Share and export">
-  <button class="sm-item" id="sm-trail" role="menuitem"><span class="sm-ic">\u2937</span>Copy trail as Markdown</button>
-  <button class="sm-item" id="sm-doc" role="menuitem"><span class="sm-ic">\u29C9</span>Copy document as Markdown</button>
+  ${buttonMarkup({ bare: true, className: "sm-item", id: "sm-trail", role: "menuitem", tabIndex: -1, label: "Copy trail as Markdown", svgIconHtml: '<span class="sm-ic">\u2937</span>' })}
+  ${buttonMarkup({ bare: true, className: "sm-item", id: "sm-doc", role: "menuitem", tabIndex: -1, label: "Copy document as Markdown", svgIconHtml: '<span class="sm-ic">\u29C9</span>' })}
   <div class="sm-sep"></div>
-  <button class="sm-item" id="sm-export" role="menuitem"><span class="sm-ic">\u21E9</span>Download snapshot (.html)</button>
-  <button class="sm-item" id="sm-portable" role="menuitem"><span class="sm-ic">\u21E3</span>Export Rabbithole (.rabbithole)</button>
+  ${buttonMarkup({ bare: true, className: "sm-item", id: "sm-export", role: "menuitem", tabIndex: -1, label: "Download snapshot (.html)", svgIconHtml: '<span class="sm-ic">\u21E9</span>' })}
+  ${buttonMarkup({ bare: true, className: "sm-item", id: "sm-portable", role: "menuitem", tabIndex: -1, label: "Export Rabbithole (.rabbithole)", svgIconHtml: '<span class="sm-ic">\u21E3</span>' })}
   <div class="sm-sep" id="sm-sep2"></div>
-  <button class="sm-item" id="sm-synth" role="menuitem"><span class="sm-ic">\u2726</span>Synthesize this journey</button>
+  ${buttonMarkup({ bare: true, className: "sm-item", id: "sm-synth", role: "menuitem", tabIndex: -1, label: "Synthesize this journey", svgIconHtml: '<span class="sm-ic">\u2726</span>' })}
 </div>
 
 <div id="confirm">
@@ -5068,12 +5068,13 @@ var RabbitholeFrozenClient = (() => {
     });
     document.getElementById("r-share").addEventListener("click", function(e) {
       e.stopPropagation();
-      toggleShare(e.currentTarget);
+      toggleShare(e.currentTarget, e.detail === 0);
     });
     document.getElementById("t-share").addEventListener("click", function(e) {
       e.stopPropagation();
-      toggleShare(e.currentTarget);
+      toggleShare(e.currentTarget, e.detail === 0);
     });
+    shareMenu.addEventListener("keydown", onShareMenuKeydown);
     document.getElementById("sm-doc").addEventListener("click", onCopyDoc);
     document.getElementById("sm-trail").addEventListener("click", onCopyTrail);
     document.getElementById("sm-export").addEventListener("click", onExportSnapshot);
@@ -5140,7 +5141,38 @@ var RabbitholeFrozenClient = (() => {
   var shareOpen = false;
   var shareAnchor = null;
   var sharePopover = null;
-  function toggleShare(anchor) {
+  function visibleShareItems() {
+    return Array.prototype.slice.call(shareMenu.querySelectorAll('[role="menuitem"]')).filter(function(item) {
+      return item.style.display !== "none";
+    });
+  }
+  function focusShareItem(item) {
+    visibleShareItems().forEach(function(candidate) {
+      candidate.tabIndex = candidate === item ? 0 : -1;
+    });
+    if (item) item.focus();
+  }
+  function onShareMenuKeydown(e) {
+    var items = visibleShareItems();
+    if (!items.length) return;
+    var index = items.indexOf(document.activeElement), target = null;
+    if (e.key === "ArrowDown") target = items[(index + 1 + items.length) % items.length];
+    else if (e.key === "ArrowUp") target = items[(index - 1 + items.length) % items.length];
+    else if (e.key === "Home") target = items[0];
+    else if (e.key === "End") target = items[items.length - 1];
+    else if (e.key === "Enter" || e.key === " ") {
+      if (index < 0) return;
+      e.preventDefault();
+      items[index].click();
+      return;
+    } else if (e.key === "Tab") {
+      closeShare();
+      return;
+    } else return;
+    e.preventDefault();
+    focusShareItem(target);
+  }
+  function toggleShare(anchor, openedByKeyboard) {
     if (shareOpen) {
       closeShare();
       return;
@@ -5150,6 +5182,10 @@ var RabbitholeFrozenClient = (() => {
     document.getElementById("sm-portable").style.display = !frozen && typeof branchHooks.exportPortable === "function" ? "" : "none";
     document.getElementById("sm-sep2").style.display = noAgent ? "none" : "";
     document.getElementById("sm-synth").style.display = noAgent ? "none" : "";
+    var items = visibleShareItems();
+    items.forEach(function(item, index) {
+      item.tabIndex = index === 0 ? 0 : -1;
+    });
     shareAnchor = anchor;
     shareOpen = true;
     shareMenu.classList.add("visible");
@@ -5158,7 +5194,7 @@ var RabbitholeFrozenClient = (() => {
       trigger: anchor,
       surface: shareMenu,
       placement: "bottom-end",
-      initialFocus: shareMenu.querySelector("button"),
+      initialFocus: openedByKeyboard ? items[0] : null,
       onClose: closeShare
     });
   }
@@ -5176,6 +5212,7 @@ var RabbitholeFrozenClient = (() => {
       flashHint(okMsg);
     }
     function legacy() {
+      var previousFocus = document.activeElement;
       var ta = document.createElement("textarea");
       ta.value = text2;
       ta.style.position = "fixed";
@@ -5187,6 +5224,12 @@ var RabbitholeFrozenClient = (() => {
       } catch (err) {
       }
       document.body.removeChild(ta);
+      if (previousFocus && previousFocus.isConnected) {
+        try {
+          previousFocus.focus();
+        } catch (err) {
+        }
+      }
     }
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text2).then(done, function() {
