@@ -83,6 +83,33 @@ assert.equal(azureRequest.headers.Authorization, undefined);
 assert.equal(azureRequest.body.model, "gpt-5.6-terra");
 console.log("ok stage18: Azure AI Foundry uses the configured v1 endpoint and api-key authentication");
 
+const localProvider = providerFor("custom");
+assert.equal(localProvider.supports_key, true);
+const localSettings = {
+  ...settingsForProvider("custom"),
+  base_url: "http://77.242.255.2:8000/v1",
+  author_model: "deepseek-v4-flash",
+  answer_model: "deepseek-v4-flash",
+};
+let localRequest;
+try {
+  globalThis.fetch = async (url, options) => {
+    localRequest = { url: String(url), headers: options.headers, body: JSON.parse(options.body) };
+    return responseFromChunks(chunksOf(openAiWire, [openAiWire.length]));
+  };
+  const localBrain = createBrain(localSettings, "local-fixture-key");
+  assert.deepEqual(await collect(localBrain.authorExplainer({ question: "why" })), [
+    { type: "text", delta: "alpha" },
+    { type: "text", delta: " beta" },
+  ]);
+} finally {
+  globalThis.fetch = originalFetch;
+}
+assert.equal(localRequest.url, "http://77.242.255.2:8000/v1/chat/completions");
+assert.equal(localRequest.headers.Authorization, "Bearer local-fixture-key");
+assert.equal(localRequest.body.model, "deepseek-v4-flash");
+console.log("ok stage18: Local OpenAI-compatible endpoints accept an optional Bearer key");
+
 const anthropicEvent = 'event: content_block_delta\r\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"hello"}}';
 assert.equal(parseAnthropicSseEvent(anthropicEvent), "hello");
 assert.equal(parseAnthropicSseEvent('data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"a"}}\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"b"}}'), "ab");

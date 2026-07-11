@@ -594,7 +594,8 @@ async function verifyAskKeyUxAndRail() {
   await page.keyboard.press("Enter");
   assert.equal(await page.getAttribute("#provider-select", "data-value"), "custom");
   assert.equal(await page.locator(".endpoint-section #provider-base").count(), 1, "Local should surface its endpoint immediately");
-  assert.equal(await page.locator("#api-key").count(), 0, "Local should not show irrelevant credential UI");
+  assert.equal(await page.locator("#api-key").count(), 1, "Local should support an optional API key");
+  assert.match(await page.locator("label[for='api-key']").innerText(), /optional/i);
   assert.equal(await page.locator("#model-select").count(), 0, "Local should not use the global OpenRouter model picker");
   assert.equal(await page.locator("#local-model").evaluate((control) => control.tagName), "BUTTON", "Local should use the owned Combobox trigger");
   assert.deepEqual(await page.evaluate(() => ["provider-base"].map((id) => {
@@ -605,6 +606,10 @@ async function verifyAskKeyUxAndRail() {
   })), [
     { id: "provider-base", named: true, described: true },
   ], "Local endpoint Field should have a label name and connected hint");
+  await page.fill("#api-key", "local-fixture-key");
+  await page.press("#api-key", "Enter");
+  await page.waitForSelector("#api-key-status.valid");
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("rh-web-api-keys") || "{}").custom), "local-fixture-key");
   await page.focus("#local-model");
   await page.keyboard.press("Enter");
   await page.fill("#local-model-input", "deepseek-r1:7b");

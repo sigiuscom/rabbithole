@@ -19,6 +19,7 @@ export const PROVIDERS = Object.freeze({
     base_url: "http://localhost:11434/v1",
     kind: "openai-compatible",
     requires_key: false,
+    supports_key: true,
     author_model: "llama3.2",
     answer_model: "llama3.2",
   }),

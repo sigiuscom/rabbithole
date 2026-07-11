@@ -926,7 +926,7 @@ async function maybeSwitchProviderFromKey(key, container, continueOnce) {
 async function validateKeyForPreset({ key, presetId, statusEl, required = false, onShake = null } = {}) {
   const value = String(key || "").trim();
   const preset = providerFor(presetId);
-  if (!preset.requires_key) {
+  if (!preset.requires_key && !preset.supports_key) {
     setKeyStatus(statusEl, "No key required for this provider.", "valid");
     return true;
   }

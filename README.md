@@ -22,6 +22,9 @@ the provider origin you configure. Holes persist in IndexedDB, so the app keeps
 working offline-ish after it loads, and `.rabbithole` export/import keeps your
 work portable.
 
+The Local provider accepts an optional API key for protected OpenAI-compatible
+servers such as vLLM; when set, Rabbithole sends it as a Bearer token.
+
 Self-hosting is static: `web/dist` can be served by any host. The optional
 `workers/fetch-proxy` Cloudflare Worker enables URL ingestion for sources that
 block browser CORS.
