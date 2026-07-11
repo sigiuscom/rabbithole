@@ -556,8 +556,8 @@ async function verifyAskKeyUxAndRail() {
   await page.focus("#provider-select");
   await page.keyboard.press("Enter");
   assert.equal(await page.getAttribute("#provider-select", "aria-expanded"), "true");
-  assert.deepEqual(await page.locator("#provider-select-listbox [role=option]").allTextContents(), ["OpenRouter", "Local"]);
-  assert.deepEqual(await page.locator("#provider-select-listbox [role=option]").evaluateAll((options) => options.map((option) => option.getAttribute("aria-selected"))), ["true", "false"]);
+  assert.deepEqual(await page.locator("#provider-select-listbox [role=option]").allTextContents(), ["OpenRouter", "Local", "Azure AI Foundry"]);
+  assert.deepEqual(await page.locator("#provider-select-listbox [role=option]").evaluateAll((options) => options.map((option) => option.getAttribute("aria-selected"))), ["true", "false", "false"]);
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const selectGap = await page.evaluate(() => {
     const trigger = document.getElementById("provider-select").getBoundingClientRect();
@@ -582,6 +582,16 @@ async function verifyAskKeyUxAndRail() {
   await page.keyboard.press("Enter");
   assert.equal(await page.locator("#provider-select-listbox").count(), 0);
   assert.equal(await page.evaluate(() => document.activeElement?.id), "provider-select", "commit should restore focus to the re-rendered trigger");
+  assert.equal(await page.getAttribute("#provider-select", "data-value"), "azure-foundry");
+  assert.equal(await page.locator(".endpoint-section #provider-base").count(), 1, "Azure AI Foundry should surface its endpoint immediately");
+  assert.equal(await page.inputValue("#provider-base"), "https://g42-openai-sweden-central.openai.azure.com/openai/v1");
+  assert.equal(await page.inputValue("#provider-model"), "gpt-5.6-terra");
+  assert.equal(await page.locator("#api-key").count(), 1, "Azure AI Foundry should request an API key");
+  assert.equal(await page.locator("#model-select").count(), 0, "Azure AI Foundry should not use the OpenRouter model picker");
+  await page.focus("#provider-select");
+  await page.keyboard.press("ArrowUp");
+  await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "option");
+  await page.keyboard.press("Enter");
   assert.equal(await page.getAttribute("#provider-select", "data-value"), "custom");
   assert.equal(await page.locator(".endpoint-section #provider-base").count(), 1, "Local should surface its endpoint immediately");
   assert.equal(await page.locator("#api-key").count(), 0, "Local should not show irrelevant credential UI");
