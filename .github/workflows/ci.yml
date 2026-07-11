@@ -21,8 +21,24 @@ jobs:
       node-version: '24'
       lint-script: ''
       typecheck-cmd: npm run check:types
-      run-tests: true
+      run-tests: false
       run-build: true
+
+  browser:
+    runs-on: aks-self-hosted
+    permissions:
+      contents: read
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - run: npm test
 
   gitleaks:
     uses: sigiuscom/workflows/.github/workflows/gitleaks.yml@6095fb4fe57f438deb7d5491238e73260f5f0eb1
