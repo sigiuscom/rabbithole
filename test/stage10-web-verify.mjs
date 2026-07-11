@@ -494,14 +494,26 @@ async function verifyAskKeyUxAndRail() {
   assert.equal(await page.getAttribute("#provider-select", "aria-expanded"), "true");
   assert.deepEqual(await page.locator("#provider-select-listbox [role=option]").allTextContents(), ["OpenRouter", "Local"]);
   assert.deepEqual(await page.locator("#provider-select-listbox [role=option]").evaluateAll((options) => options.map((option) => option.getAttribute("aria-selected"))), ["true", "false"]);
-  await page.waitForTimeout(180);
+  await page.waitForFunction(() => {
+    const trigger = document.getElementById("provider-select");
+    const list = document.getElementById("provider-select-listbox");
+    if (!trigger || !list) return false;
+    const token = parseFloat(getComputedStyle(list).getPropertyValue("--surface-gap"));
+    const actual = list.getBoundingClientRect().top - trigger.getBoundingClientRect().bottom;
+    const matches = Number.isFinite(token) && Math.abs(actual - token) <= 1;
+    if (!matches) window.dispatchEvent(new Event("resize"));
+    return matches;
+  }, null, { timeout: 5000 }).catch(() => {});
   const selectGap = await page.evaluate(() => {
     const trigger = document.getElementById("provider-select").getBoundingClientRect();
     const list = document.getElementById("provider-select-listbox");
     const surface = list.getBoundingClientRect();
     return { actual: surface.top - trigger.bottom, token: parseFloat(getComputedStyle(list).getPropertyValue("--surface-gap")) };
   });
-  assert(Math.abs(selectGap.actual - selectGap.token) <= 1, `Select listbox should use the surface gap token, got ${selectGap.actual}px`);
+  assert(
+    Number.isFinite(selectGap.token) && Math.abs(selectGap.actual - selectGap.token) <= 1,
+    `Select listbox should use the surface gap token, got actual ${selectGap.actual}px and token ${Number.isFinite(selectGap.token) ? `${selectGap.token}px` : "NaN"}`
+  );
   await page.keyboard.press("Escape");
   assert.equal(await page.locator("#provider-select-listbox").count(), 0, "first Escape should close only the child Select layer");
   assert.equal(await page.locator("#web-settings-popover").isVisible(), true, "settings should remain after child Escape");
