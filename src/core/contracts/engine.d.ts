@@ -78,7 +78,8 @@ export interface NodeProgressEvent extends NodeTarget, BaseUrlFields {
   /**
    * Optional ordering tag. For the same run id, sequence numbers at or below
    * the recorded value are discarded; a higher sequence or different id is
-   * accepted. Untagged progress is always accepted without changing records.
+   * accepted. Untagged progress deliberately remains accepted for embedders and
+   * replay; run tagging is a producer-side discipline.
    */
   run?: ProgressRun;
 }

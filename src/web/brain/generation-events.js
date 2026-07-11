@@ -1,6 +1,6 @@
 import { TitleSentinelParser } from "./title-sentinel.js";
 
-/** Phase 6 adapter: raw provider text becomes the shared GenerationEvent vocabulary. */
+/** Adapt raw provider text to the shared GenerationEvent vocabulary. */
 export async function* adaptTextGeneration(chunks) {
   for await (const delta of chunks) {
     if (delta) yield { type: "text", delta };

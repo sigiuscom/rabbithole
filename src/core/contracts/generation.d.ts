@@ -1,5 +1,5 @@
 /**
- * Generation adapter vocabulary for Phase 6.
+ * Shared generation adapter vocabulary.
  *
  * Runtime authority for the browser brain surfaces and their current raw-text
  * streams: {@link ../../web/brain/openai-compatible.js},
@@ -15,8 +15,8 @@
  * Browser brains emit this vocabulary: branch adapters contain sentinel
  * parsing and authoring adapters emit text events only. The MCP host remains a
  * separate wire ingress with its own persistence policy.
- * Transport-level run tagging uses `ProgressRun` from {@link ./engine.js} and
- * begins in Phase 6; it is intentionally not redeclared here.
+ * Transport-level run tagging uses `ProgressRun` from {@link ./engine.js}; it
+ * is intentionally not redeclared here.
  * `GenerationRun` runtime behavior is authoritative in
  * {@link ../generation-run.js}; `DocEvent` output shapes remain authoritative
  * in {@link ../reducer.js} and are described by {@link ./engine.js}.

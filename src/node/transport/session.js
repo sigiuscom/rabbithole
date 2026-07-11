@@ -517,6 +517,9 @@ export class RabbitHoleSession {
       this.dispatchHoleEvent(progress);
       const updated = this.nodes.get(node.id);
       this.startAnswerWatchdog();
+      // Deliberately untagged outbound projection: `progress` already passed
+      // through the reducer with its GenerationRun tag; the SSE payload mirrors
+      // canonical node state and is never reducer input.
       this.broadcast({
         type: "node_progress",
         node_id: updated.id,

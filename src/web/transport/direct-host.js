@@ -417,6 +417,8 @@ export class DirectRabbitholeHost {
   dispatchProgress(nodeId, markdown, { emit = false } = {}) {
     const node = this.state.nodes.get(nodeId);
     if (!node || node.status !== "pending") return;
+    // Deliberately untagged: this is a one-shot retry reset/replacement, not
+    // generation progress, so GenerationRun ordering does not apply.
     this.dispatch({
       type: "node_progress",
       node_id: nodeId,
@@ -426,6 +428,8 @@ export class DirectRabbitholeHost {
     });
     const current = this.state.nodes.get(nodeId);
     if (emit) {
+      // This mirrors the deliberately untagged reset above to the local UI; it
+      // is not a streamed generation event and must not claim a run identity.
       this.emit({
         type: "node_progress",
         node_id: nodeId,

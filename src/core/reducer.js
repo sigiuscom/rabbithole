@@ -126,6 +126,8 @@ function reduceNodeProgress(state, event) {
   const node = state.nodes.get(nodeId);
   if (!node) return withState(state);
   const run = event.run;
+  // Untagged progress deliberately bypasses ordering: tags are producer-side
+  // discipline while the reducer remains permissive for embedders and replay.
   const tagged = run && typeof run.id === "string" && typeof run.seq === "number";
   const recorded = tagged ? state.progressRuns.get(nodeId) : null;
   if (recorded && recorded.id === /** @type {import("./contracts/engine.js").ProgressRun} */ (run).id && /** @type {import("./contracts/engine.js").ProgressRun} */ (run).seq <= recorded.seq) return withState(state);

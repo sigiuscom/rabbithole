@@ -21,9 +21,10 @@
  *
  * IMPORTANT — PROVISIONAL AND REVISABLE: Phase 8's content spike owns the final
  * hydratable-block, primitive, lifecycle, identity, state, and security formats.
- * Phase 8 may revise these declarations without migration obligations. These
- * names exist only so Phase 6/7 code can share vocabulary; they do not freeze a
- * serialized format or promise compatibility for authored or learner state.
+ * A future content-model revision may change these declarations without
+ * migration obligations. These names let current code share vocabulary; they
+ * do not freeze a serialized format or promise compatibility for authored or
+ * learner state.
  */
 
 export interface MarkdownRenderContext {
