@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semver image tag to publish, without leading v
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  version:
+    runs-on: aks-self-hosted
+    outputs:
+      semver: ${{ steps.version.outputs.semver }}
+    steps:
+      - id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          version="${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"
+          case "$version" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::version must look like 0.1.0"; exit 1 ;;
+          esac
+          echo "semver=$version" >> "$GITHUB_OUTPUT"
+
+  image:
+    needs: version
+    uses: sigiuscom/workflows/.github/workflows/docker-build.yml@eeaf4f02051c198cc4c6b9571cb54812e12e585e
+    with:
+      context: .
+      dockerfile: Dockerfile
+      image: ghcr.io/sigiuscom/rabbithole
+      push: true
+      version: ${{ needs.version.outputs.semver }}
+      registry-mirrors: |
+        spegel-registry.spegel.svc.cluster.local:5000
+      insecure-registries: |
+        spegel-registry.spegel.svc.cluster.local:5000
+      image-download-retry: '3'

@@ -1,0 +1,14 @@
+namespace: rabbithole
+image:
+  repository: ghcr.io/sigiuscom/rabbithole
+  tag: 0.1.0
+  pullPolicy: IfNotPresent
+  pullSecret: ghcr-secret
+replicas: 2
+service:
+  port: 80
+  targetPort: 8080
+  clusterIP: "10.0.186.203"
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {cpu: 200m, memory: 128Mi}

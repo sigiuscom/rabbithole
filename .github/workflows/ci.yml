@@ -1,36 +1,33 @@
 name: CI
 
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-      - run: npm ci
-      - run: npm run check:types
-      - run: npx playwright install --with-deps chromium firefox webkit
-      - run: npm run build
-      - run: npm run check:dist
-      - run: npm run check:purity
-      - run: npm test
+  node:
+    uses: sigiuscom/workflows/.github/workflows/node-app.yml@6095fb4fe57f438deb7d5491238e73260f5f0eb1
+    with:
+      package-manager: npm
+      node-version: '24'
+      lint-script: ''
+      typecheck-cmd: npm run check:types
+      run-tests: true
+      run-build: true
 
-  packaging:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: ["18.x", "20.x"]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
-      - run: npm ci
-      - run: npm run test:packaging
+  gitleaks:
+    uses: sigiuscom/workflows/.github/workflows/gitleaks.yml@6095fb4fe57f438deb7d5491238e73260f5f0eb1
+
+  helm:
+    uses: sigiuscom/workflows/.github/workflows/helm-lint.yml@6095fb4fe57f438deb7d5491238e73260f5f0eb1
+    with:
+      charts-dir: charts
