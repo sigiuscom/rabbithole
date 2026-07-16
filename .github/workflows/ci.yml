@@ -14,6 +14,9 @@ permissions:
   contents: read
 
 jobs:
+  actionlint:
+    uses: sigiuscom/workflows/.github/workflows/actionlint.yml@96c8930ba5571658047132774b0d32ceee319a00
+
   node:
     uses: sigiuscom/workflows/.github/workflows/node-app.yml@6095fb4fe57f438deb7d5491238e73260f5f0eb1
     with:
