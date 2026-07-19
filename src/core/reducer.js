@@ -20,7 +20,7 @@ import {
 /** @typedef {import("./contracts/engine.js").NodesUpdateEvent} NodesUpdateEvent */
 /** @typedef {import("./contracts/engine.js").NodeOriginEvent} NodeOriginEvent */
 
-/** @param {Parameters<import("./contracts/engine.js").createHoleState>[0]} [input] @returns {HoleState} */
+/** @param {Parameters<typeof import("./contracts/engine.js").createHoleState>[0]} [input] @returns {HoleState} */
 export function createHoleState({ hole_id, title, root_id, created_at = null, view_state = null, nodes = [] } = {}) {
   const entries = nodes instanceof Map ? nodes : new Map((nodes || []).map((node) => [node.id, node]));
   return {
