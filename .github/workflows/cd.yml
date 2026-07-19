@@ -1,0 +1,26 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['charts/**', 'VERSION', '**/*.md']
+  workflow_dispatch:
+    inputs:
+      level:
+        description: 'Version bump level override'
+        required: false
+        type: string
+        default: 'auto'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  cd:
+    uses: sigiuscom/workflows/.github/workflows/cd.yml@f1ebaa3e7bf7f1e87241d93bfc2c36b475306395  # main
+    with:
+      images: |
+        [{"image":"ghcr.io/sigiuscom/rabbithole","context":".","dockerfile":"Dockerfile"}]
+      level: ${{ inputs.level || 'auto' }}
+    secrets: inherit
