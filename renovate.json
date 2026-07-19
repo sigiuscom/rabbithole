@@ -2,5 +2,12 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7",
+      "description": "Track upstream (shlokkhemani/rabbithole) on TypeScript 5.x; do not adopt the native tsgo v7 major ahead of upstream"
+    }
   ]
 }
