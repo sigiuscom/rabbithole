@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   cd:
-    uses: sigiuscom/workflows/.github/workflows/cd.yml@f0de07c9ee59edc8f4d42e743352ae6948a22a7d  # main
+    uses: sigiuscom/workflows/.github/workflows/cd.yml@e47882f094ec8cf2cc8993a5218ca8d8b8bba3ca  # main
     with:
       images: |
         [{"image":"ghcr.io/sigiuscom/rabbithole","context":".","dockerfile":"Dockerfile"}]
