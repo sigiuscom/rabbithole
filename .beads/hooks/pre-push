@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+# --- BEGIN BEADS INTEGRATION (br) ---
+# Warn when the JSONL export lags behind the beads DB.
+if command -v br >/dev/null 2>&1 && [ -d .beads ]; then
+  br sync --flush-only >/dev/null 2>&1 || exit 0
+  if ! git diff --quiet -- .beads/issues.jsonl 2>/dev/null; then
+    echo >&2 "beads: .beads/issues.jsonl has unexported changes -- commit it before pushing"
+  fi
+fi
+# --- END BEADS INTEGRATION (br) ---
+exit 0

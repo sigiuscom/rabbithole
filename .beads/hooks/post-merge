@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# --- BEGIN BEADS INTEGRATION (br) ---
+# Import the JSONL export back into the local beads DB.
+if command -v br >/dev/null 2>&1 && [ -d .beads ] && [ -f .beads/issues.jsonl ]; then
+  br sync --import-only >/dev/null 2>&1 || true
+fi
+# --- END BEADS INTEGRATION (br) ---
+exit 0
