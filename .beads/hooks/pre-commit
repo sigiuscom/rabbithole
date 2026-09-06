@@ -1,10 +1,8 @@
 #!/usr/bin/env sh
 # --- BEGIN BEADS INTEGRATION (br) ---
-# Export the beads DB to JSONL and stage it with the commit.
+# Export tracker data; preserve the caller's staged file selection.
 if command -v br >/dev/null 2>&1 && [ -d .beads ]; then
-  if br sync --flush-only >/dev/null 2>&1 && [ -f .beads/issues.jsonl ]; then
-    git add .beads/issues.jsonl
-  fi
+  br sync --flush-only || exit "$?"
 fi
 # --- END BEADS INTEGRATION (br) ---
 exit 0
