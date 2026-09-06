@@ -87,7 +87,7 @@ br sync --status      # Check sync status
 
 ### Session Protocol
 
-Before handoff, inspect `git status`, record verification evidence, and run `br sync --flush-only` if tracker data changed. Stage, create branches/commits, push, or open a PR only when explicitly authorized by the user; limit those actions to the agreed files. A read-only session does not require Git publication.
+Before handoff, inspect `git status`, record verification evidence, and run `br sync --flush-only` if tracker data changed. For assigned Sigius work, commit the verified and independently reviewed task files and normally push to the configured writable remote without another confirmation; follow `~/.agents/rules/coding-reliability.md` for scope and blockers. Creating a new branch or PR still requires an explicit request; safe detached worktrees and routine history-preserving Git integration may proceed autonomously. Read-only work needs no empty commit.
 
 ### Best Practices
 
