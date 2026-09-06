@@ -105,6 +105,7 @@ async function buildWebApp(assetDir) {
     sourcemap: false,
     define: {
       __RABBITHOLE_DEFAULT_PROXY_URL__: JSON.stringify(proxyConfig.defaultUrl),
+      __RABBITHOLE_MANAGED_LLM__: process.env.RABBITHOLE_MANAGED_LLM === "1" ? "true" : "false",
     },
     legalComments: "none",
     logLevel: "silent"

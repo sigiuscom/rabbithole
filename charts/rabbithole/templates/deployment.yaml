@@ -12,9 +12,13 @@ spec:
       app.kubernetes.io/name: rabbithole
   template:
     metadata:
+      annotations:
+        checksum/llm-proxy: {{ .Files.Get "files/llm-proxy.mjs" | sha256sum }}
       labels:
         app.kubernetes.io/name: rabbithole
     spec:
+      serviceAccountName: rabbithole
+      automountServiceAccountToken: false
       imagePullSecrets:
         - name: {{ .Values.image.pullSecret }}
       securityContext:
@@ -46,7 +50,37 @@ spec:
           volumeMounts:
             - {name: tmp, mountPath: /tmp}
             - {name: cache, mountPath: /var/cache/nginx}
+        - name: llm-proxy
+          image: {{ .Values.llm.image | quote }}
+          command: ["node", "/app/llm-proxy.mjs"]
+          env:
+            - name: LITELLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rabbithole-llm
+                  key: LITELLM_API_KEY
+          readinessProbe:
+            exec:
+              command: ["node", "-e", "fetch('http://127.0.0.1:8081/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+            timeoutSeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["node", "-e", "fetch('http://127.0.0.1:8081/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+            timeoutSeconds: 3
+            periodSeconds: 30
+          resources: {{ .Values.llm.resources | toJson }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - {name: llm-proxy, mountPath: /app, readOnly: true}
       volumes:
+        - name: llm-proxy
+          configMap:
+            name: rabbithole-llm-proxy
         - name: tmp
           emptyDir: {}
         - name: cache
@@ -67,3 +101,10 @@ spec:
     - name: http
       port: {{ .Values.service.port }}
       targetPort: http
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rabbithole
+  namespace: {{ .Values.namespace }}
+automountServiceAccountToken: false

@@ -1,4 +1,4 @@
-import { defaultBrainSettings, providerFor, resolveProviderId } from "../brain/provider-registry.js";
+import { MANAGED_LLM, defaultBrainSettings, providerFor, resolveProviderId } from "../brain/provider-registry.js";
 import { ensureCanonicalCredentials, saveApiKey } from "./credential-store.js";
 
 const SETTINGS_KEY = "rh-web-settings";
@@ -13,7 +13,10 @@ export function loadSettings() {
   const defaults = defaultWebSettings();
   try {
     const parsed = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? { ...defaults, ...parsed } : defaults;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return defaults;
+    return MANAGED_LLM
+      ? { ...defaults, fetch_proxy_url: typeof parsed.fetch_proxy_url === "string" ? parsed.fetch_proxy_url : defaults.fetch_proxy_url }
+      : { ...defaults, ...parsed };
   } catch {
     return defaults;
   }
@@ -27,6 +30,7 @@ export function saveSettings(settings) {
 }
 
 export function ensureCanonical() {
+  if (MANAGED_LLM) return;
   const defaults = defaultWebSettings();
   let raw = null;
   let stored = null;

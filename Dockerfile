@@ -6,7 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+RUN RABBITHOLE_MANAGED_LLM=1 npm run build
 
 FROM nginxinc/nginx-unprivileged:1.31-alpine-slim
 

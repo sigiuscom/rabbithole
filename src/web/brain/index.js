@@ -1,4 +1,4 @@
-import { providerFor } from "./provider-registry.js";
+import { MANAGED_LLM, defaultBrainSettings, providerFor } from "./provider-registry.js";
 import { OpenAICompatibleBrain } from "./openai-compatible.js";
 import { AnthropicDirectBrain } from "./anthropic-messages.js";
 
@@ -11,6 +11,7 @@ export * from "./openai-compatible.js";
 export * from "./anthropic-messages.js";
 
 export function createBrain(settings, apiKey) {
+  if (MANAGED_LLM) { settings = defaultBrainSettings(); apiKey = ""; }
   const preset = providerFor(settings?.preset);
   const base = settings?.base_url || preset.base_url;
   const common = {

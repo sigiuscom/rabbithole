@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "updated_at": "2026-09-06T19:14:23Z",
+  "artifacts": {
+    "proposal.md": {
+      "sha256": "268476b066f16b648999b91dcdf9ae8a6c34b59247eec58b44f491dffb14b415",
+      "synced_at": "2026-09-06T19:14:23Z",
+      "depends_on": []
+    },
+    "design.md": {
+      "sha256": "05c9082a21258bc53c70ae8effc71ec448b2c3405dedb41894b43cd1e7180fe4",
+      "synced_at": "2026-09-06T19:14:23Z",
+      "depends_on": [
+        "proposal.md"
+      ]
+    },
+    "specs/managed-llm/spec.md": {
+      "sha256": "c48c469984f651672f43aac9a26751fe6833120ccee34e3b718a1e4189de3126",
+      "synced_at": "2026-09-06T19:14:23Z",
+      "depends_on": [
+        "design.md"
+      ]
+    }
+  }
+}

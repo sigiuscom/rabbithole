@@ -1,4 +1,4 @@
-import { providerFor, settingsForProvider, PROVIDERS } from "../brain/index.js";
+import { MANAGED_LLM, providerFor, settingsForProvider, PROVIDERS } from "../brain/index.js";
 import { loadSettings, saveSettings } from "./preferences-store.js";
 import { getApiKey } from "./credential-store.js";
 import { testedModelHint } from "../brain/tested-models.js";
@@ -38,6 +38,13 @@ export function createSettingsPopover(options) {
     if (!host) return;
     const settings = loadSettings();
     const preset = providerFor(settings.preset);
+    if (MANAGED_LLM) {
+      host.innerHTML = `<div class="settings-section"><p>DeepSeek on Spark</p><small>Ready to use.</small></div><div class="settings-section">${fieldMarkup({ id: "fetch-proxy-url", label: "Link relay", value: settings.fetch_proxy_url || "", hint: "Used when a site blocks in-browser fetching." })}</div>`;
+      wireField(host, { id: "fetch-proxy-url" });
+      host.querySelector("#fetch-proxy-url")?.addEventListener("change", (event) => applyPatch({ fetch_proxy_url: event.target.value.trim() }));
+      popover?.update();
+      return;
+    }
     const currentModel = settings.answer_model || preset.answer_model;
     surface.querySelector("#settings-panel").dataset.preset = preset.id;
     host.innerHTML = `${preset.endpoint_editable ? `<div class="settings-section endpoint-section">${fieldMarkup({ id: "provider-base", label: "Endpoint", value: settings.base_url || "", placeholder: preset.base_url, hint: preset.endpoint_hint || "Use an OpenAI-compatible endpoint. Localhost works directly; remote origins require a self-hosted build." })}</div>` : ""}
@@ -124,6 +131,7 @@ export function createSettingsPopover(options) {
     surface = document.createElement("div"); surface.id = "web-settings-popover"; surface.className = "web-settings-dialog popover-surface"; surface.tabIndex = -1; surface.setAttribute("aria-label", "Model settings");
     surface.innerHTML = `<div id="settings-inline-key" class="settings-inline-key" hidden></div><section id="settings-panel" class="settings-panel" aria-label="Model settings"><div class="settings-inner"><div class="settings-section provider-section"><div class="settings-row"><span class="settings-label" id="provider-select-label">Provider</span>${selectMarkup({ id: "provider-select", labelledBy: "provider-select-label", value: preset.id, options: providerOptions, iconHtml: chevron })}</div></div><div id="settings-conditional-sections"></div></div></section>`;
     document.body.append(surface); trigger.setAttribute("aria-controls", surface.id); wireProviderSelect(); renderConditionalSections();
+    if (MANAGED_LLM) surface.querySelector(".provider-section")?.remove();
     const panel = surface.querySelector("#settings-panel"); if (panel.querySelector("#api-key")?.value.trim()) commitSettingsKey();
     const explicit = focusSelector ? surface.querySelector(focusSelector) : null;
     popover = openPopover({ trigger, surface, placement: "bottom-end", initialFocus: explicit || (focusKey ? surface.querySelector("#api-key") : surface), onClose: close });

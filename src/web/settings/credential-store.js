@@ -1,4 +1,4 @@
-import { providerFor } from "../brain/provider-registry.js";
+import { MANAGED_LLM, providerFor } from "../brain/provider-registry.js";
 
 const LEGACY_KEY = "rh-web-api-key";
 const KEYS_KEY = "rh-web-api-keys";
@@ -24,6 +24,7 @@ export function writeRememberedKeys(keys) {
 }
 
 export function saveApiKey(settings) {
+  if (MANAGED_LLM) return;
   const providerId = providerFor(settings.preset).id;
   const apiKey = settings.api_key || "";
   const keys = readRememberedKeys();
@@ -40,12 +41,14 @@ export function saveApiKey(settings) {
 }
 
 export function getApiKey(settings) {
+  if (MANAGED_LLM) return "";
   const providerId = providerFor(settings.preset).id;
   if (settings.session_only === false) return readRememberedKeys()[providerId] || "";
   return memoryKeys[providerId] || "";
 }
 
 export function ensureCanonicalCredentials() {
+  if (MANAGED_LLM) return;
   let legacyRaw = null;
   let keysRaw = null;
   try {

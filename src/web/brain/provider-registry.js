@@ -1,4 +1,12 @@
-export const PROVIDERS = Object.freeze({
+export const MANAGED_LLM = typeof __RABBITHOLE_MANAGED_LLM__ !== "undefined" && __RABBITHOLE_MANAGED_LLM__ === true;
+const managedProvider = Object.freeze({
+  id: "managed", label: "DeepSeek on Spark", kind: "openai-compatible",
+  base_url: "/api/llm", requires_key: false,
+  author_model: "selfhosted/deepseek-v4-flash-spark",
+  answer_model: "selfhosted/deepseek-v4-flash-spark",
+});
+
+export const PROVIDERS = Object.freeze(MANAGED_LLM ? { managed: managedProvider } : {
   openrouter: Object.freeze({
     id: "openrouter",
     aliases: Object.freeze(["anthropic", "openai"]),
@@ -39,6 +47,7 @@ export const PROVIDERS = Object.freeze({
 });
 
 export function resolveProviderId(id) {
+  if (MANAGED_LLM) return "managed";
   if (PROVIDERS[id]) return id;
   return Object.values(PROVIDERS).find((provider) => provider.aliases?.includes(id))?.id || "openrouter";
 }
@@ -48,7 +57,7 @@ export function providerFor(id) {
 }
 
 export function defaultBrainSettings() {
-  const provider = PROVIDERS.openrouter;
+  const provider = MANAGED_LLM ? managedProvider : PROVIDERS.openrouter;
   return {
     preset: provider.id,
     base_url: provider.base_url,
