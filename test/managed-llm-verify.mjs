@@ -61,7 +61,7 @@ const url = `http://127.0.0.1:${proxy.address().port}/chat/completions`;
 const valid = { model, stream: true, messages: [{ role: 'user', content: 'Explain gravity' }], temperature: 0.35 };
 const post = body => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer browser-key' }, body: JSON.stringify(body) });
 try {
-  for (const patch of [{ model: 'gpt-5.5' }, { api_base: 'https://attacker.invalid' }, { api_key: 'evil' }, { fallbacks: ['other'] }, { stream: false }, { messages: [] }, { messages: [{ role: 'user', content: { url: 'file:///etc/passwd' } }] }, { temperature: 10 }]) {
+  for (const patch of [{ model: 'gpt-5.5' }, { reasoning_effort: 'high' }, { api_base: 'https://attacker.invalid' }, { api_key: 'evil' }, { fallbacks: ['other'] }, { stream: false }, { messages: [] }, { messages: [{ role: 'user', content: { url: 'file:///etc/passwd' } }] }, { temperature: 10 }]) {
     assert.equal((await post({ ...valid, ...patch })).status, 400);
   }
   assert.equal(calls, 0, 'invalid requests must not reach upstream');
@@ -78,6 +78,7 @@ try {
   assert.equal(lastRequest.url, '/v1/chat/completions');
   assert.equal(lastRequest.headers.authorization, 'Bearer server-only-key');
   assert.equal(lastRequest.body.model, model);
+  assert.equal(lastRequest.body.reasoning_effort, 'none', 'managed requests must not spend output tokens on invisible reasoning');
   assert.deepEqual(lastRequest.body.fallbacks, []);
   assert.deepEqual(lastRequest.body.messages, valid.messages);
   mode = 'error';
@@ -114,6 +115,7 @@ try {
       for await (const event of generation) events.push(event);
       assert.equal(events.filter(e => e.type === 'text').map(e => e.delta).join(''), expected);
       assert.equal(lastRequest.body.model, model);
+      assert.equal(lastRequest.body.reasoning_effort, 'none');
     }
   } finally { globalThis.fetch = nativeFetch; }
   console.log('managed LLM settings and proxy verification passed');

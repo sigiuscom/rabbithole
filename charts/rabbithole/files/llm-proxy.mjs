@@ -51,7 +51,7 @@ export function createLlmServer({
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
           model: MODEL, messages: input.messages, temperature: input.temperature ?? 0.35,
-          stream: true, fallbacks: [],
+          stream: true, fallbacks: [], reasoning_effort: 'none',
         }),
       });
       if (!upstream.ok || !upstream.body || !upstream.headers.get('content-type')?.includes('text/event-stream')) {
