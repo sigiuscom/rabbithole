@@ -8,7 +8,7 @@ need to clone or build anything. Follow the Quick start in [README.md](./README.
 ## What this is
 
 An MCP server (stdio) that opens a branching-document canvas in the browser.
-Plain ES modules, no build step, no TypeScript, no test framework yet.
+JavaScript ES modules with an esbuild bundle, TypeScript-based checking, and staged Node verification scripts.
 
 - `bin/mcp-server.js` — entry; just imports `src/mcp/server.js`
 - `src/mcp/` — MCP wiring (server name `rabbithole`, tools from `src/tools/manifest.js`)
@@ -23,6 +23,9 @@ Plain ES modules, no build step, no TypeScript, no test framework yet.
 
 ```bash
 npm install
+npm run check:types   # TypeScript checks without emitting files
+npm run build         # build the browser bundle
+npm test              # staged verification scripts
 RABBITHOLE_NO_BROWSER=1 node bin/mcp-server.js   # speaks MCP on stdio
 ```
 
@@ -84,15 +87,7 @@ br sync --status      # Check sync status
 
 ### Session Protocol
 
-**Before ending any session, run this checklist:**
-
-```bash
-git status              # Check what changed
-git add <files>         # Stage code changes
-br sync --flush-only    # Export beads changes to JSONL
-git commit -m "..."     # Commit everything
-git push                # Push to remote
-```
+Before handoff, inspect `git status`, record verification evidence, and run `br sync --flush-only` if tracker data changed. Stage, create branches/commits, push, or open a PR only when explicitly authorized by the user; limit those actions to the agreed files. A read-only session does not require Git publication.
 
 ### Best Practices
 
