@@ -62,6 +62,21 @@ async function verifyLayerAndAnchor(page, engine) {
   assert.equal(geometry[1].placement, "bottom-start", `${engine}: virtual anchor flips`);
   assert.equal(geometry[1].left, 16, `${engine}: virtual anchor clamps with token edge`);
   assert.equal(geometry[1].top, 16, `${engine}: virtual anchor uses token gap before clamping`);
+
+  await reset(page, '<style>#ask{position:fixed;width:372px;height:48.5px;--surface-gap:14px;--surface-edge:14px;transform:scale(.97) translateY(-4px);transform-origin:top center}</style><div id="ask"></div>');
+  const scaledGeometry = await page.evaluate(async (base) => {
+    const { anchorSurface } = await import(base + "/src/ui/overlay/anchor.js");
+    const surface = document.getElementById("ask");
+    const anchor = { contextElement: document.body, getBoundingClientRect: () => ({ left: -24, right: 76, top: 456, bottom: 476, width: 100, height: 20 }) };
+    const handle = anchorSurface(anchor, surface, { placement: "bottom-start" });
+    surface.style.transform = "none";
+    const box = surface.getBoundingClientRect();
+    const result = { gap: 456 - box.bottom, left: box.left, right: box.right, placement: surface.dataset.placement };
+    handle.dispose(); return result;
+  }, baseUrl);
+  assert.equal(scaledGeometry.placement, "top-start", `${engine}: scaled selection surface flips above the anchor`);
+  assert(Math.abs(scaledGeometry.gap - 14) < 1, `${engine}: entry scaling must preserve the final selection gap, got ${scaledGeometry.gap.toFixed(2)}px vs 14.00px`);
+  assert(scaledGeometry.left >= 14 && scaledGeometry.right <= 626, `${engine}: entry scaling must preserve viewport edges`);
 }
 
 async function verifyPopoverAndDialog(page, engine) {

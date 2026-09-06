@@ -21,7 +21,9 @@ export function anchorSurface(trigger, surface, options) {
     frame = 0;
     if (disposed || !surface.isConnected || (virtual ? contextElement && !contextElement.isConnected : !trigger.isConnected)) return;
     updating = true;
-    var anchor = trigger.getBoundingClientRect(), box = surface.getBoundingClientRect(), viewport = viewportRect();
+    var anchor = trigger.getBoundingClientRect(), viewport = viewportRect();
+    // Entry transforms change the visual rect, not the final layout size.
+    var box = { width: surface.offsetWidth, height: surface.offsetHeight };
     var edge = tokenPx(surface, "--surface-edge"), gap = tokenPx(surface, "--surface-gap");
     var parts = placement.split("-"), side = parts[0], align = parts[1] || "center";
     var vertical = side === "top" || side === "bottom";
