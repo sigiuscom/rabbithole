@@ -1,6 +1,21 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { once } from 'node:events';
+import { spawnSync } from 'node:child_process';
+import { mkdtemp, symlink, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const entryDir = await mkdtemp(join(tmpdir(), 'rh-proxy-entry-'));
+try {
+  const linkedEntry = join(entryDir, 'llm-proxy.mjs');
+  await symlink(fileURLToPath(new URL('../charts/rabbithole/files/llm-proxy.mjs', import.meta.url)), linkedEntry);
+  const processResult = spawnSync(process.execPath, [linkedEntry], {
+    env: { ...process.env, LITELLM_API_KEY: 'test-entrypoint-key' }, timeout: 1000, encoding: 'utf8',
+  });
+  assert.equal(processResult.error?.code, 'ETIMEDOUT', `ConfigMap-style symlink entry must keep serving, not exit: ${processResult.stderr}`);
+} finally { await rm(entryDir, { recursive: true }); }
 
 globalThis.__RABBITHOLE_MANAGED_LLM__ = true;
 const stored = new Map();

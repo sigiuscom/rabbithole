@@ -1,6 +1,7 @@
 import http from 'node:http';
 import { once } from 'node:events';
 import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
 
 const MODEL = 'selfhosted/deepseek-v4-flash-spark';
 const MAX_BODY = 2 * 1024 * 1024;
@@ -106,6 +107,6 @@ function validInput(input) {
     ['system', 'user', 'assistant'].includes(message.role) && typeof message.content === 'string');
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   createLlmServer().listen(8081, '127.0.0.1');
 }
