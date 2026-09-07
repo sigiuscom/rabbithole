@@ -3,7 +3,7 @@ import { ProviderError, normalizeProviderError } from "./errors.js";
 import { adaptBranchGeneration, adaptTextGeneration } from "./generation-events.js";
 
 export class OpenAICompatibleBrain {
-  constructor({ baseUrl, apiKey, authorModel, answerModel, auth = "bearer", extraHeaders = {}, title = "Rabbithole" } = {}) {
+  constructor({ baseUrl, apiKey, authorModel, answerModel, auth = "bearer", extraHeaders = {}, title = "Rabbithole", webResearch = false } = {}) {
     this.baseUrl = normalizeBaseUrl(baseUrl);
     this.apiKey = apiKey || "";
     this.authorModel = authorModel || answerModel || "anthropic/claude-sonnet-5";
@@ -11,6 +11,7 @@ export class OpenAICompatibleBrain {
     this.auth = auth;
     this.extraHeaders = extraHeaders || {};
     this.title = title;
+    this.webResearch = webResearch;
   }
 
   async *authorDocument(source, signal) {
@@ -33,6 +34,7 @@ export class OpenAICompatibleBrain {
 
   async *authorExplainer({ question } = {}, signal) {
     const body = {
+      ...(this.webResearch ? { research_question: String(question ?? "") } : {}),
       model: this.authorModel,
       messages: buildExplainerMessages({ question }),
       stream: true,
@@ -51,6 +53,7 @@ export class OpenAICompatibleBrain {
 
   async *answerBranch(context, signal) {
     const body = {
+      ...(this.webResearch ? { research_question: String(context?.question ?? "") } : {}),
       model: this.answerModel,
       messages: buildAnswerMessages(context),
       stream: true,

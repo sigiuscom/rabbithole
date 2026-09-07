@@ -45,6 +45,11 @@ const upstream = http.createServer(async (req, res) => {
   let body = '';
   for await (const chunk of req) body += chunk;
   lastRequest = { body: JSON.parse(body), headers: req.headers, url: req.url };
+  if (!lastRequest.body.stream) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ choices: [{ message: { tool_calls: [{ id: 'finish', type: 'function', function: { name: 'finish_research', arguments: '{}' } }] } }] }));
+    return;
+  }
   if (mode === 'error') { res.writeHead(401).end('sensitive-provider-detail'); return; }
   res.writeHead(200, { 'Content-Type': 'text/event-stream' });
   res.write('data: {"choices":[{"delta":{"reasoning_content":"private reasoning"}}]}\n\n');
@@ -58,7 +63,7 @@ assert.throws(() => createLlmServer({ apiKey: '' }), /key/i);
 const proxy = createLlmServer({ apiKey: 'server-only-key', upstreamUrl: `http://127.0.0.1:${upstream.address().port}/v1/chat/completions`, maxConcurrent: 1, timeoutMs: 1000 });
 await new Promise(resolve => proxy.listen(0, '127.0.0.1', resolve));
 const url = `http://127.0.0.1:${proxy.address().port}/chat/completions`;
-const valid = { model, stream: true, messages: [{ role: 'user', content: 'Explain gravity' }], temperature: 0.35 };
+const valid = { model, stream: true, research_question: 'Explain gravity', messages: [{ role: 'user', content: 'Explain gravity' }], temperature: 0.35 };
 const post = body => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer browser-key' }, body: JSON.stringify(body) });
 try {
   for (const patch of [{ model: 'gpt-5.5' }, { reasoning_effort: 'high' }, { api_base: 'https://attacker.invalid' }, { api_key: 'evil' }, { fallbacks: ['other'] }, { stream: false }, { messages: [] }, { messages: [{ role: 'user', content: { url: 'file:///etc/passwd' } }] }, { temperature: 10 }]) {
@@ -80,7 +85,7 @@ try {
   assert.equal(lastRequest.body.model, model);
   assert.equal(lastRequest.body.reasoning_effort, 'none', 'managed requests must not spend output tokens on invisible reasoning');
   assert.deepEqual(lastRequest.body.fallbacks, []);
-  assert.deepEqual(lastRequest.body.messages, valid.messages);
+  assert.deepEqual(lastRequest.body.messages.slice(1, -1), valid.messages);
   mode = 'error';
   const error = await post(valid);
   assert.equal(error.status, 502);
@@ -107,7 +112,11 @@ try {
   });
   assert.equal(slowStatus, 504, 'deadline must also bound an incomplete request body');
   const nativeFetch = globalThis.fetch;
-  globalThis.fetch = (target, options) => nativeFetch(target === '/api/llm/chat/completions' ? url : target, options);
+  const browserRequests = [];
+  globalThis.fetch = (target, options) => {
+    if (target === '/api/llm/chat/completions') browserRequests.push(JSON.parse(options.body));
+    return nativeFetch(target === '/api/llm/chat/completions' ? url : target, options);
+  };
   try {
     const brain = createBrain(loadSettings(), 'injected-browser-key');
     for (const [generation, expected] of [[brain.authorExplainer({ question: 'Gravity?' }), 'Hello'], [brain.authorDocument({ markdown: '# Gravity' }), 'Hello'], [brain.answerBranch({ question: 'Why?', parent_markdown: 'Gravity', fallbackTitle: 'Gravity' }), 'Hello\n']]) {
@@ -117,6 +126,7 @@ try {
       assert.equal(lastRequest.body.model, model);
       assert.equal(lastRequest.body.reasoning_effort, 'none');
     }
+    assert.deepEqual(browserRequests.map(r => r.research_question), ['Gravity?', undefined, 'Why?'], 'only explicitly typed questions may enter research, never document bodies');
   } finally { globalThis.fetch = nativeFetch; }
   console.log('managed LLM settings and proxy verification passed');
 } finally {

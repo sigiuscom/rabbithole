@@ -13,7 +13,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/llm-proxy: {{ .Files.Get "files/llm-proxy.mjs" | sha256sum }}
+        checksum/llm-proxy: {{ (.Files.Glob "files/*.mjs").AsConfig | sha256sum }}
       labels:
         app.kubernetes.io/name: rabbithole
     spec:

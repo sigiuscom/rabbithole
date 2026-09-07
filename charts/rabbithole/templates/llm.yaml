@@ -4,8 +4,7 @@ metadata:
   name: rabbithole-llm-proxy
   namespace: {{ .Values.namespace }}
 data:
-  llm-proxy.mjs: |
-{{ .Files.Get "files/llm-proxy.mjs" | indent 4 }}
+{{ (.Files.Glob "files/*.mjs").AsConfig | indent 2 }}
 ---
 apiVersion: v1
 kind: Secret

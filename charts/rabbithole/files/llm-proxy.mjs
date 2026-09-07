@@ -2,6 +2,7 @@ import http from 'node:http';
 import { once } from 'node:events';
 import { pathToFileURL } from 'node:url';
 import { realpathSync } from 'node:fs';
+import { research, sourceFooter } from './web-tools.mjs';
 
 const MODEL = 'selfhosted/deepseek-v4-flash-spark';
 const MAX_BODY = 2 * 1024 * 1024;
@@ -11,6 +12,7 @@ export function createLlmServer({
   upstreamUrl = 'http://litellm.litellm.svc.cluster.local:4000/v1/chat/completions',
   maxConcurrent = 4,
   timeoutMs = 600_000,
+  webTools,
 } = {}) {
   if (!apiKey?.trim()) throw new Error('LITELLM_API_KEY is required');
   let active = 0;
@@ -46,11 +48,12 @@ export function createLlmServer({
       let input;
       try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { fail(400, 'Invalid JSON'); return; }
       if (!validInput(input)) { fail(400, 'Invalid managed generation request'); return; }
+      const evidence = await research(input.messages, { question: input.research_question, apiKey, upstreamUrl, model: MODEL, signal: controller.signal, webTools });
       upstream = await fetch(upstreamUrl, {
         method: 'POST', redirect: 'error', signal: controller.signal,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: MODEL, messages: input.messages, temperature: input.temperature ?? 0.35,
+          model: MODEL, messages: evidence.messages, temperature: input.temperature ?? 0.35,
           stream: true, fallbacks: [], reasoning_effort: 'none',
         }),
       });
@@ -60,6 +63,7 @@ export function createLlmServer({
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
       const decoder = new TextDecoder();
       let buffer = '';
+      let answer = '';
       for await (const chunk of upstream.body) {
         buffer += decoder.decode(chunk, { stream: true });
         const events = buffer.split(/\r?\n\r?\n/);
@@ -69,12 +73,17 @@ export function createLlmServer({
           for (const line of event.split(/\r?\n/)) {
             if (!line.startsWith('data:')) continue;
             const data = line.slice(5).trim();
-            if (data === '[DONE]') { res.end('data: [DONE]\n\n'); return; }
+            if (data === '[DONE]') {
+              const footer = sourceFooter(evidence, answer);
+              if (footer) res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: footer } }] })}\n\n`);
+              res.end('data: [DONE]\n\n'); return;
+            }
             if (!data) continue;
             const parsed = JSON.parse(data);
             if (parsed.error) throw new Error('Provider stream error');
             const content = parsed.choices?.[0]?.delta?.content;
             if (typeof content !== 'string' || !content) continue;
+            answer += content;
             // Only public answer text crosses this boundary, never provider metadata or errors.
             const frame = `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`;
             if (!res.write(frame)) await once(res, 'drain', { signal: controller.signal });
@@ -98,7 +107,8 @@ export function createLlmServer({
 
 function validInput(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return false;
-  if (Object.keys(input).some(key => !['model', 'messages', 'stream', 'temperature'].includes(key))) return false;
+  if (Object.keys(input).some(key => !['model', 'messages', 'stream', 'temperature', 'research_question'].includes(key))) return false;
+  if (input.research_question !== undefined && (typeof input.research_question !== 'string' || input.research_question.length > 16384)) return false;
   if (input.model !== MODEL || input.stream !== true) return false;
   if (input.temperature !== undefined && (!Number.isFinite(input.temperature) || input.temperature < 0 || input.temperature > 2)) return false;
   return Array.isArray(input.messages) && input.messages.length > 0 && input.messages.length <= 256 && input.messages.every(message =>
