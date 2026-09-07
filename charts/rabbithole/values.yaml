@@ -1,7 +1,7 @@
 namespace: rabbithole
 image:
   repository: ghcr.io/sigiuscom/rabbithole
-  tag: 0.3.3
+  tag: 0.4.0
   pullPolicy: IfNotPresent
   pullSecret: ghcr-secret
 replicas: 2
