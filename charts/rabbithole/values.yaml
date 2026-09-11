@@ -11,9 +11,9 @@ service:
   clusterIP: "10.0.186.203"
 resources:
   requests: {cpu: 100m, memory: 128Mi}
-  limits: {cpu: 200m, memory: 128Mi}
+  limits: {cpu: 500m, memory: 128Mi}
 llm:
   image: node:24-alpine@sha256:50c8e8ca1d27439048670df5883f32d57cf81cff6233222c893fd0d9884cbd81
   resources:
     requests: {cpu: 100m, memory: 128Mi}
-    limits: {cpu: 500m, memory: 256Mi}
+    limits: {cpu: 1000m, memory: 256Mi}
