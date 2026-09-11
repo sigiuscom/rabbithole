@@ -44,7 +44,7 @@ jobs:
       - run: npm test
 
   gitleaks:
-    uses: sigiuscom/workflows/.github/workflows/gitleaks.yml@6095fb4fe57f438deb7d5491238e73260f5f0eb1
+    uses: sigiuscom/workflows/.github/workflows/gitleaks.yml@68021f7726fdb1032bcc721dd7fea71e16a28a17
 
   helm:
     uses: sigiuscom/workflows/.github/workflows/helm-lint.yml@6095fb4fe57f438deb7d5491238e73260f5f0eb1
