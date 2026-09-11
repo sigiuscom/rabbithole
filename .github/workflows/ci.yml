@@ -40,6 +40,14 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - name: Use Azure Ubuntu package mirror
+        run: |
+          sources="$(grep -rl 'http://archive.ubuntu.com/ubuntu' \
+            /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null || true)"
+          test -n "$sources"
+          printf '%s\n' "$sources" |
+            xargs sudo sed -i \
+              's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g'
       - run: npx playwright install --with-deps
       - run: npm test
 
