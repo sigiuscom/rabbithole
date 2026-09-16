@@ -322,7 +322,10 @@ async function verifyLocalComboboxStates(openRouterFixture) {
     return { context, page };
   };
 
-  const found = await run((route) => route.fulfill({ status: 200, headers: { ...corsHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ data: [{ id: "llama3.2" }, { id: "qwen3:8b" }] }) }));
+  const found = await run(async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await route.fulfill({ status: 200, headers: { ...corsHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ data: [{ id: "llama3.2" }, { id: "qwen3:8b" }] }) });
+  });
   await found.page.click("#local-model");
   assert.match(await found.page.locator("#local-model-listbox").innerText(), /Looking for installed models/);
   await found.page.waitForSelector(".model-option[data-value='qwen3:8b']");
@@ -365,6 +368,7 @@ async function verifyLocalComboboxStates(openRouterFixture) {
 async function openFreshSettings(page) {
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.keyboard.press("Escape");
+  await page.locator("#composer-modal").waitFor({ state: "hidden" });
   await page.click("#t-settings");
   await page.waitForSelector("#web-settings-popover");
   assert.equal(await page.getAttribute("#t-settings", "aria-expanded"), "true", "settings trigger must expose the open popover state");
